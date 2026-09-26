@@ -1,0 +1,381 @@
+﻿<UserControl x:Class="PidSimulator.App.Views.DetailView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:PidSimulator.App.Views"
+             xmlns:controls="clr-namespace:PidSimulator.App.Controls"
+             xmlns:vm="clr-namespace:PidSimulator.App.ViewModels">
+    <UserControl.Resources>
+        <controls:BoolEqualsConverter x:Key="RadioBool"/>
+        <Style x:Key="Key" TargetType="TextBlock" BasedOn="{StaticResource Hint}">
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Margin" Value="0,0,16,8"/>
+        </Style>
+        <Style x:Key="Val" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*" MinHeight="320"/>
+        </Grid.RowDefinitions>
+
+        <!-- ヘッダ -->
+        <DockPanel Margin="0,0,0,10">
+            <Button DockPanel.Dock="Left" Style="{StaticResource BtnGhost}" Content="← 一覧へ戻る" Command="{Binding Main.BackCommand}" Margin="0,0,10,0"/>
+            <ContentControl DockPanel.Dock="Left" Content="{Binding Target}" ContentTemplate="{StaticResource IsaBubble}" Focusable="False"/>
+            <WrapPanel DockPanel.Dock="Right" VerticalAlignment="Center">
+                <ContentControl Content="{Binding Target}" ContentTemplate="{StaticResource StateBadge}" Focusable="False"/>
+                <ContentControl Content="{Binding Target}" ContentTemplate="{StaticResource ForceBadge}" Focusable="False"/>
+                <ContentControl Content="{Binding Target}" ContentTemplate="{StaticResource CommIndicator}" Focusable="False" Margin="2,0,0,0"/>
+            </WrapPanel>
+            <StackPanel Margin="12,0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Target.Name}" FontSize="18" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                <TextBlock Text="{Binding Target.DetailSubtitle}" Style="{StaticResource Hint}" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+        </DockPanel>
+
+        <!-- 操作バー -->
+        <Border Grid.Row="1" Style="{StaticResource Panel}" Padding="10,8" Margin="0,0,0,10">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Style="{StaticResource BtnGhost}" Content="{Binding Target.DemoFaultText}" Command="{Binding Target.ToggleDemoFaultCommand}" Visibility="{Binding Target.IsDummy, Converter={StaticResource BoolToVis}}"
+                            ToolTip="ダミーPLCのMVアドレスを応答なしにして、通信異常時の動作を確認します"/>
+                    <Button Style="{StaticResource BtnGhost}" Content="登録内容編集" Command="{Binding Target.EditCommand}" IsEnabled="{Binding Target.IsStopped}"
+                            ToolTip="停止中に、アドレス・レンジ・モデルなどの登録内容を変更します" ToolTipService.ShowOnDisabled="True"/>
+                    <Button Style="{StaticResource BtnGhost}" Content="複製" Command="{Binding Target.DuplicateCommand}"
+                            ToolTip="この対象の設定を引き継いで、別の制御対象として登録します"/>
+                </StackPanel>
+                <WrapPanel VerticalAlignment="Center">
+                    <Button Style="{StaticResource BtnGo}" Content="▶ 制御開始" Command="{Binding Target.StartCommand}" IsEnabled="{Binding Target.IsStopped}"/>
+                    <Button Content="■ 制御停止" Command="{Binding Target.StopCommand}" IsEnabled="{Binding Target.IsRunning}" Margin="6,0,0,0"/>
+                    <Button Content="↺ リセット" Command="{Binding Target.ResetCommand}" Margin="6,0,0,0"/>
+                    <Rectangle Width="1" Height="22" Fill="{StaticResource LineBrush}" Margin="14,0"/>
+                    <CheckBox Content="モデル単体プレビュー" IsChecked="{Binding Target.IsPreview, Mode=TwoWay}" IsEnabled="{Binding Target.CanPreview}"
+                              VerticalAlignment="Center" ToolTip="PLCと接続せず、GUIから仮MVを入力してモデル応答を確認します"/>
+                    <TextBlock Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="18,0,0,0">
+                        <Run Text="経過"/> <Run Text="{Binding Target.ElapsedText, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource InkBrush}"/>
+                    </TextBlock>
+                    <TextBlock Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="18,0,0,0">
+                        <Run Text="PV書込先"/> <Run Text="{Binding Target.PvAddress, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource InkBrush}" FontWeight="SemiBold"/>
+                        <Run Text="　"/><Run Text="{Binding Target.PvWriteText, Mode=OneWay}"/>
+                    </TextBlock>
+                </WrapPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- 異常・プレビューのバナー -->
+        <StackPanel Grid.Row="2">
+            <Border Background="{StaticResource AlarmBgBrush}" BorderBrush="{StaticResource AlarmBrush}" BorderThickness="1" CornerRadius="4"
+                    Padding="12,8" Margin="0,0,0,10" Visibility="{Binding Target.HasAlarm, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource BtnSmall}" Content="通信を再確認して再開" Command="{Binding Target.ResumeCommand}"/>
+                    <TextBlock Foreground="{StaticResource AlarmBrush}" VerticalAlignment="Center" TextWrapping="Wrap">
+                        <Run Text="異常" FontWeight="Bold"/><Run Text="　"/><Run Text="{Binding Target.Alarm, Mode=OneWay}"/>
+                        <Run Text="　／　異常時動作:"/> <Run Text="{Binding Target.OnCommErrorText, Mode=OneWay}"/>
+                        <Run Text="　／　復旧時:"/> <Run Text="{Binding Target.RecoverText, Mode=OneWay}"/>
+                    </TextBlock>
+                </DockPanel>
+            </Border>
+            <Border Background="{StaticResource PrevBgBrush}" BorderBrush="#C9B5E6" BorderThickness="1" CornerRadius="4"
+                    Padding="12,8" Margin="0,0,0,10" Visibility="{Binding Target.IsPreview, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <WrapPanel Margin="0,0,0,8">
+                        <TextBlock Text="モデル単体プレビュー" FontWeight="Bold" Foreground="{StaticResource PrevBrush}" Margin="0,0,12,0"/>
+                        <TextBlock Text="PLCとの通信を切り離しています。PVは書き込みません。" Foreground="{StaticResource PrevBrush}"/>
+                    </WrapPanel>
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Left" Text="仮MV" Foreground="{StaticResource PrevBrush}" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding PreviewMvText}" FontFamily="{StaticResource MonoFont}"
+                                   Foreground="{StaticResource PrevBrush}" Width="120" TextAlignment="Right" VerticalAlignment="Center"/>
+                        <Grid>
+                            <Slider Minimum="{Binding PreviewMvMin}" Maximum="{Binding PreviewMvMax}" SmallChange="{Binding PreviewMvSmallChange}" LargeChange="{Binding PreviewMvLargeChange}" Value="{Binding PreviewMv, Mode=TwoWay}"
+                                    VerticalAlignment="Center" Visibility="{Binding IsRelayPreview, Converter={StaticResource InvBoolToVis}}"/>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Visibility="{Binding IsRelayPreview, Converter={StaticResource BoolToVis}}">
+                                <RadioButton GroupName="PreviewRelay" Content="OFF（0%）" Margin="0,0,24,0"
+                                             IsChecked="{Binding PreviewOn, Mode=TwoWay, Converter={StaticResource RadioBool}, ConverterParameter=False}"/>
+                                <RadioButton GroupName="PreviewRelay" Content="ON（100%）"
+                                             IsChecked="{Binding PreviewOn, Mode=TwoWay, Converter={StaticResource RadioBool}, ConverterParameter=True}"/>
+                            </StackPanel>
+                        </Grid>
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <!-- SP / PV / MV -->
+        <Grid Grid.Row="3" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition/><ColumnDefinition Width="10"/><ColumnDefinition/><ColumnDefinition Width="10"/><ColumnDefinition/>
+            </Grid.ColumnDefinitions>
+            <ContentControl Grid.Column="0" Content="{Binding Target.Sp}" ContentTemplate="{StaticResource ValueBlock}" Focusable="False"/>
+            <ContentControl Grid.Column="2" Content="{Binding Target.Pv}" ContentTemplate="{StaticResource ValueBlock}" Focusable="False"/>
+            <ContentControl Grid.Column="4" Content="{Binding Target.Mv}" ContentTemplate="{StaticResource ValueBlock}" Focusable="False"/>
+        </Grid>
+
+        <!-- タブ -->
+        <TabControl Grid.Row="4">
+            <TabItem Header="トレンド">
+                <views:TrendView/>
+            </TabItem>
+
+            <TabItem Header="パラメータ">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource Line2Brush}" BorderThickness="1"
+                            CornerRadius="3" Padding="10,8" Margin="0,0,0,10">
+                        <TextBlock FontSize="12" Foreground="{StaticResource Ink2Brush}" TextWrapping="Wrap"
+                                   Text="値を入力して入力欄を離れると反映します。「停止中のみ」の項目は運転中は変更できません。「急変注意」の項目を運転中に変更すると確認を表示します。変更内容はイベントログに記録されます。"/>
+                    </Border>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="条件から計算…" Command="{Binding Target.CalculateParamsCommand}" IsEnabled="{Binding Target.IsStopped}" Margin="0,0,8,0"/>
+                        <Button Content="標準値に戻す" Command="{Binding Target.ResetParamsCommand}" IsEnabled="{Binding Target.IsStopped}"
+                                ToolTip="停止中のみ実行できます" ToolTipService.ShowOnDisabled="True"/>
+                    </StackPanel>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Target.Params}" Focusable="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:ParamEditViewModel}">
+                                    <Border Width="340" Margin="0,0,24,0" Padding="0,6" BorderBrush="{StaticResource Line2Brush}" BorderThickness="0,0,0,1" ToolTip="{Binding HelpText}">
+                                        <StackPanel>
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Right" Width="52" Text="{Binding Unit}" TextWrapping="Wrap" Style="{StaticResource Hint}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                            <Grid DockPanel.Dock="Right" Width="150">
+                                                <TextBox x:Name="num" Text="{Binding ValueText, UpdateSourceTrigger=LostFocus}" TextAlignment="Right" IsEnabled="{Binding IsEditable}"/>
+                                                <ComboBox x:Name="choice" ItemsSource="{Binding Choices}" SelectedIndex="{Binding ChoiceIndex}" IsEnabled="{Binding IsEditable}" Visibility="Collapsed" Height="28"/>
+                                            </Grid>
+                                            <WrapPanel VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Label}" TextWrapping="Wrap" MaxWidth="120" FontSize="12.5" Margin="0,0,6,0"/>
+                                                <Border Background="{StaticResource Surface3Brush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="3" Padding="4,0" Margin="0,0,4,0"
+                                                        Visibility="{Binding StopOnly, Converter={StaticResource BoolToVis}}">
+                                                    <TextBlock Text="停止中のみ" FontSize="10.5" Foreground="{StaticResource Ink3Brush}"/>
+                                                </Border>
+                                                <Border Background="{StaticResource ForceBgBrush}" BorderBrush="{StaticResource ForceLineBrush}" BorderThickness="1" CornerRadius="3" Padding="4,0"
+                                                        Visibility="{Binding Warn, Converter={StaticResource BoolToVis}}">
+                                                    <TextBlock Text="急変注意" FontSize="10.5" Foreground="{StaticResource ForceBrush}"/>
+                                                </Border>
+                                            </WrapPanel>
+                                        </DockPanel>
+                                            <TextBlock Text="{Binding Def.Description}" FontSize="11" Foreground="{StaticResource Ink3Brush}" TextWrapping="Wrap" Margin="0,4,0,2"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsChoice}" Value="True">
+                                            <Setter TargetName="num" Property="Visibility" Value="Collapsed"/>
+                                            <Setter TargetName="choice" Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </TabItem>
+
+            <TabItem Header="FORCE">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource Line2Brush}" BorderThickness="1"
+                            CornerRadius="3" Padding="10,8" Margin="0,0,0,10">
+                        <TextBlock FontSize="12" Foreground="{StaticResource Ink2Brush}" TextWrapping="Wrap"
+                                   Text="FORCE中の項目は一覧カード・詳細画面・上部の警告帯に表示されます。PV FORCE は PLC へ実際に書き込まれます。FORCE中に値を変えると、入力欄を離れた時点で反映します。"/>
+                    </Border>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Style="{StaticResource BtnWarn}" Content="この対象のFORCEをすべて解除" Command="{Binding ReleaseForcesCommand}"/>
+                        <Button Style="{StaticResource BtnGhost}" Content="全対象のFORCE解除" Command="{Binding Main.ReleaseAllCommand}" Margin="8,0,0,0"/>
+                    </StackPanel>
+                    <StackPanel>
+                        <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="8,6">
+                            <Grid TextElement.FontSize="12" TextElement.FontWeight="SemiBold" TextElement.Foreground="{StaticResource Ink2Brush}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="170"/><ColumnDefinition/><ColumnDefinition Width="90"/><ColumnDefinition Width="170"/><ColumnDefinition Width="90"/><ColumnDefinition Width="100"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="項目"/><TextBlock Grid.Column="1" Text="内容"/><TextBlock Grid.Column="2" Text="実値" TextAlignment="Right" Margin="0,0,14,0"/>
+                                <TextBlock Grid.Column="3" Text="FORCE値"/><TextBlock Grid.Column="4" Text="状態"/>
+                            </Grid>
+                        </Border>
+                        <ItemsControl ItemsSource="{Binding ForceRows}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border x:Name="row" Padding="8,5" BorderBrush="{StaticResource Line2Brush}" BorderThickness="0,0,0,1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="170"/><ColumnDefinition/><ColumnDefinition Width="90"/><ColumnDefinition Width="170"/><ColumnDefinition Width="90"/><ColumnDefinition Width="100"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Label}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Description}" Style="{StaticResource Hint}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Grid.Column="2" FontFamily="{StaticResource MonoFont}" TextAlignment="Right" VerticalAlignment="Center" Margin="0,0,14,0">
+                                                <Run Text="{Binding ActualText, Mode=OneWay}"/> <Run Text="{Binding Unit, Mode=OneWay}" FontFamily="{StaticResource UiFont}" Foreground="{StaticResource Ink3Brush}" FontSize="11"/>
+                                            </TextBlock>
+                                            <StackPanel Grid.Column="3" Orientation="Horizontal">
+                                                <TextBox Width="96" Text="{Binding Value, UpdateSourceTrigger=LostFocus}"/>
+                                                <TextBlock Text="{Binding Unit}" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="state" Grid.Column="4" Text="解除" Style="{StaticResource Hint}" VerticalAlignment="Center"/>
+                                            <Button x:Name="btn" Grid.Column="5" Style="{StaticResource BtnSmallWarn}" Content="FORCE ON" Command="{Binding ToggleCommand}" HorizontalAlignment="Left"/>
+                                        </Grid>
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsOn}" Value="True">
+                                            <Setter TargetName="row" Property="Background" Value="{StaticResource ForceBgBrush}"/>
+                                            <Setter TargetName="state" Property="Text" Value="FORCE中"/>
+                                            <Setter TargetName="state" Property="Foreground" Value="{StaticResource ForceBrush}"/>
+                                            <Setter TargetName="state" Property="FontWeight" Value="Bold"/>
+                                            <Setter TargetName="btn" Property="Content" Value="解除"/>
+                                            <Setter TargetName="btn" Property="Style" Value="{StaticResource BtnSmall}"/>
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </DockPanel>
+            </TabItem>
+
+            <TabItem Header="外乱">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.3*"/><ColumnDefinition Width="18"/><ColumnDefinition/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionTitle}"><Run Text="外乱："/><Run Text="{Binding DistLabel, Mode=OneWay}"/></TextBlock>
+                        <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" Text="PIDの外乱応答を確認します。投入中はトレンドの外乱値に反映されます。"/>
+                        <DockPanel Margin="0,10,0,12">
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding DistUnit}" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                            <TextBox DockPanel.Dock="Right" Width="80" Text="{Binding DistValue, StringFormat={}{0:0.0##}, UpdateSourceTrigger=LostFocus}" Margin="10,0,0,0"/>
+                            <Slider Minimum="0" Maximum="{Binding DistMax}" Value="{Binding DistValue}" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <WrapPanel>
+                            <Button Content="手動投入" Command="{Binding DistOnCommand}"
+                                    Visibility="{Binding Target.DistOn, Converter={StaticResource InvBoolToVis}}"/>
+                            <Button Content="外乱解除" Command="{Binding DistOffCommand}"
+                                    Visibility="{Binding Target.DistOn, Converter={StaticResource BoolToVis}}"/>
+                            <TextBlock Text="{Binding DistStatus}" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                        </WrapPanel>
+                        <Border Background="{StaticResource AlarmBgBrush}" CornerRadius="3" Padding="10,6" Margin="0,10,0,0"
+                                Visibility="{Binding DistForced, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Foreground="{StaticResource AlarmBrush}" FontSize="12.5" TextWrapping="Wrap" Text="外乱 FORCE が優先されます。予約時間はそのまま進みます。"/>
+                        </Border>
+                    </StackPanel>
+                    <GroupBox Grid.Column="2" Header="ステップ・時間指定外乱" VerticalAlignment="Top" Padding="10">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" Text="左の外乱値を使って、1回の投入と解除を予約します。" Margin="0,0,0,8"/>
+                            <RadioButton GroupName="distStart" Content="今すぐ（次の演算から）"
+                                         IsChecked="{Binding DistDelayed, Converter={StaticResource RadioBool}, ConverterParameter=False}" Margin="0,0,0,6"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <RadioButton GroupName="distStart" Content="開始まで" VerticalAlignment="Center"
+                                             IsChecked="{Binding DistDelayed, Converter={StaticResource RadioBool}, ConverterParameter=True}"/>
+                                <TextBox Width="76" Text="{Binding DistDelayText, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding DistDelayed}" Margin="8,0,4,0"/>
+                                <TextBlock Text="秒" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <CheckBox Content="投入後" IsChecked="{Binding DistHasDuration}" VerticalAlignment="Center"/>
+                                <TextBox Width="76" Text="{Binding DistDurationText, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding DistHasDuration}" Margin="8,0,4,0"/>
+                                <TextBlock Text="秒で解除" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <WrapPanel>
+                                <Button Style="{StaticResource BtnPrimary}" Content="この条件で実行" Command="{Binding ScheduleDistCommand}"/>
+                                <Button Content="取消・解除" Command="{Binding CancelDistScheduleCommand}" IsEnabled="{Binding DistCanCancel}" Margin="6,0,0,0"/>
+                            </WrapPanel>
+                            <TextBlock Text="{Binding DistScheduleError}" TextWrapping="Wrap" Foreground="{StaticResource AlarmBrush}" FontSize="12" Margin="0,6,0,0"/>
+                            <TextBlock Text="{Binding DistScheduleStatus}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,4,0,8"/>
+                            <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap"
+                                       Text="時間は運転・プレビュー中のみ進み、100 ms 単位で反映します。停止・リセットで予約を取り消し、投入中の予約外乱を解除します。予約はプロジェクトに保存しません。"/>
+                        </StackPanel>
+                    </GroupBox>
+                </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="通信設定">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition/><ColumnDefinition Width="24"/><ColumnDefinition/>
+                        </Grid.ColumnDefinitions>
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.ColumnSpan="2" Text="PLCアドレス・スケーリング" Style="{StaticResource SectionTitle}"/>
+                            <TextBlock Grid.Row="1" Text="MV（PLC → シミュレータ）" Style="{StaticResource Key}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource Val}"><Run Text="{Binding Target.MvAddress, Mode=OneWay}" FontFamily="{StaticResource MonoFont}"/>　<Run Text="{Binding Target.MvRangeText, Mode=OneWay}" Foreground="{StaticResource Ink3Brush}"/></TextBlock>
+                            <TextBlock Grid.Row="2" Text="PV（シミュレータ → PLC）" Style="{StaticResource Key}" Foreground="{StaticResource AlarmBrush}"/>
+                            <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource Val}"><Run Text="{Binding Target.PvAddress, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" FontWeight="Bold"/>　<Run Text="{Binding Target.PvRangeText, Mode=OneWay}" Foreground="{StaticResource Ink3Brush}"/></TextBlock>
+                            <TextBlock Grid.Row="3" Text="SP（PLC → シミュレータ）" Style="{StaticResource Key}"/>
+                            <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource Val}"><Run Text="{Binding Target.SpAddressText, Mode=OneWay}" FontFamily="{StaticResource MonoFont}"/>　<Run Text="{Binding Target.SpRangeText, Mode=OneWay}" Foreground="{StaticResource Ink3Brush}"/></TextBlock>
+                            <TextBlock Grid.Row="4" Text="データ型" Style="{StaticResource Key}"/>
+                            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Target.DataType}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Val}"/>
+                            <TextBlock Grid.Row="5" Text="接続状態" Style="{StaticResource Key}"/>
+                            <ContentControl Grid.Row="5" Grid.Column="1" Content="{Binding Target}" ContentTemplate="{StaticResource CommIndicator}" Focusable="False" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                        </Grid>
+                        <StackPanel Grid.Column="2">
+                            <StackPanel.Resources>
+                                <Style TargetType="RadioButton">
+                                    <Setter Property="Margin" Value="0,0,0,7"/>
+                                    <Setter Property="VerticalContentAlignment" Value="Center"/>
+                                    <Setter Property="Cursor" Value="Hand"/>
+                                </Style>
+                            </StackPanel.Resources>
+                            <TextBlock Text="通信異常時の動作" Style="{StaticResource SectionTitle}"/>
+                            <RadioButton GroupName="err" Content="シミュレーション停止" IsChecked="{Binding Target.OnCommError, Converter={StaticResource EnumEq}, ConverterParameter=StopSimulation}"/>
+                            <RadioButton GroupName="err" Content="MV最終値保持" IsChecked="{Binding Target.OnCommError, Converter={StaticResource EnumEq}, ConverterParameter=HoldMv}"/>
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton GroupName="err" Content="MVを安全値へ変更" IsChecked="{Binding Target.OnCommError, Converter={StaticResource EnumEq}, ConverterParameter=SafeMv}" Margin="0,0,10,7"/>
+                                <TextBox Width="70" TextAlignment="Right" Text="{Binding Target.SafeMv, UpdateSourceTrigger=LostFocus}" VerticalAlignment="Top" Height="24"/>
+                                <TextBlock Text="%" Style="{StaticResource Hint}" Margin="6,4,0,0"/>
+                            </StackPanel>
+                            <RadioButton GroupName="err" Content="PV書込み停止" IsChecked="{Binding Target.OnCommError, Converter={StaticResource EnumEq}, ConverterParameter=StopPvWrite}"/>
+
+                            <TextBlock Text="復旧時" Style="{StaticResource SectionTitle}" Margin="0,12,0,8"/>
+                            <RadioButton GroupName="rec" Content="自動再開" IsChecked="{Binding Target.Recover, Converter={StaticResource EnumEq}, ConverterParameter=Auto}"/>
+                            <RadioButton GroupName="rec" Content="手動再開（確認してから再開）" IsChecked="{Binding Target.Recover, Converter={StaticResource EnumEq}, ConverterParameter=Manual}"/>
+
+                            <TextBlock Text="停止時のPV" Style="{StaticResource SectionTitle}" Margin="0,12,0,8"/>
+                            <RadioButton GroupName="stop" Content="最終値保持" IsChecked="{Binding Target.StopPv, Converter={StaticResource EnumEq}, ConverterParameter=Hold}"/>
+                            <RadioButton GroupName="stop" IsChecked="{Binding Target.StopPv, Converter={StaticResource EnumEq}, ConverterParameter=Initial}">
+                                <TextBlock><Run Text="初期値へ戻す（"/><Run Text="{Binding Target.InitialPvText, Mode=OneWay}"/><Run Text="）"/></TextBlock>
+                            </RadioButton>
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton GroupName="stop" Content="指定値へ戻す" IsChecked="{Binding Target.StopPv, Converter={StaticResource EnumEq}, ConverterParameter=Value}" Margin="0,0,10,7"/>
+                                <TextBox Width="80" TextAlignment="Right" Text="{Binding Target.StopPvValue, UpdateSourceTrigger=LostFocus}" VerticalAlignment="Top" Height="24"/>
+                                <TextBlock Text="{Binding Target.PvUnit}" Style="{StaticResource Hint}" Margin="6,4,0,0"/>
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                       Text="変更はすぐに反映され、イベントログに記録されます。アドレスとレンジは「登録内容編集」で変更します。"/>
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="イベントログ">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="種別" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <ComboBox Width="120" ItemsSource="{Binding Categories}" SelectedItem="{Binding EventFilter}"/>
+                        <TextBlock Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,0" Text="{Binding Events.Count, StringFormat={}{0} 件}"/>
+                    </StackPanel>
+                    <DataGrid ItemsSource="{Binding Events}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="日時" Binding="{Binding Time, StringFormat={}{0:yyyy/MM/dd HH:mm:ss}}" Width="150">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock"><Setter Property="FontFamily" Value="{StaticResource MonoFont}"/></Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="種別" Binding="{Binding Category}" Width="90"/>
+                            <DataGridTextColumn Header="内容" Binding="{Binding Message}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>

@@ -1,0 +1,114 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing version tag to release (e.g. v0.2.0)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+      DOTNET_NOLOGO: 'true'
+      DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+    outputs:
+      release_tag: ${{ steps.version.outputs.release_tag }}
+
+    steps:
+      - name: Validate release tag
+        id: version
+        run: |
+          if ($env:RELEASE_TAG -cnotmatch '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$') {
+            throw 'Use a version tag such as v0.2.0 or v0.2.0-rc.1.'
+          }
+          $version = $env:RELEASE_TAG.Substring(1)
+          "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
+          "RELEASE_ASSET=PidSimulator-$env:RELEASE_TAG-win-x64.zip" >> $env:GITHUB_ENV
+          "release_tag=$env:RELEASE_TAG" >> $env:GITHUB_OUTPUT
+
+      - name: Checkout release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Test application
+        run: |
+          dotnet test tests/PidSimulator.Tests/PidSimulator.Tests.csproj --configuration Release --nologo --verbosity minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Publish Windows executable
+        run: |
+          $publishArgs = @(
+            'publish', 'src/PidSimulator.App/PidSimulator.App.csproj',
+            '--configuration', 'Release', '--runtime', 'win-x64', '--self-contained', 'true',
+            '--output', 'publish/win-x64-single', '--nologo', '--verbosity', 'minimal',
+            '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true',
+            '-p:EnableCompressionInSingleFile=true', '-p:DebugType=None', '-p:DebugSymbols=false',
+            "-p:Version=$env:RELEASE_VERSION"
+          )
+          dotnet @publishArgs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package EXE and DEMO only
+        run: |
+          New-Item -ItemType Directory -Path 'artifacts' -Force | Out-Null
+          $zip = Join-Path 'artifacts' $env:RELEASE_ASSET
+          Compress-Archive -LiteralPath @('publish/win-x64-single/PidSimulator.exe', 'publish/win-x64-single/DEMO.psim') -DestinationPath $zip -CompressionLevel Optimal
+          $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $zip).Path)
+          try {
+            $entries = @($archive.Entries | ForEach-Object { $_.FullName } | Sort-Object)
+            if ($entries.Count -ne 2 -or $entries[0] -cne 'DEMO.psim' -or $entries[1] -cne 'PidSimulator.exe') {
+              throw 'The release ZIP must contain only PidSimulator.exe and DEMO.psim.'
+            }
+          } finally { $archive.Dispose() }
+
+      - name: Publish ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $zip = Join-Path 'artifacts' $env:RELEASE_ASSET
+          ./.github/scripts/render-release-notes.ps1 -Repository $env:GITHUB_REPOSITORY -ReleaseTag $env:RELEASE_TAG -OutputPath 'artifacts/release-notes.md'
+          $releaseArgs = @(
+            'release', 'create', $env:RELEASE_TAG, '--repo', $env:GITHUB_REPOSITORY,
+            '--verify-tag', '--title', "PID Process Simulator $env:RELEASE_TAG",
+            '--notes-file', 'artifacts/release-notes.md', $zip
+          )
+          if ($env:RELEASE_TAG.Contains('-')) { $releaseArgs += '--prerelease' }
+          gh @releaseArgs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  check-published-release:
+    needs: publish
+    permissions:
+      contents: write
+    uses: ./.github/workflows/virustotal-release.yml
+    with:
+      release_tag: ${{ needs.publish.outputs.release_tag }}
+    secrets:
+      VT_API_KEY: ${{ secrets.VT_API_KEY }}

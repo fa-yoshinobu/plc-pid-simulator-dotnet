@@ -1,0 +1,775 @@
+{
+  "FormatVersion": 2,
+  "Name": "DEMO",
+  "Plc": {
+    "Mode": "Dummy"
+  },
+  "Targets": [
+    {
+      "Name": "LIC-101 原水槽 液面",
+      "Description": "原水ポンプ吐出弁で液面制御",
+      "Kind": "Level",
+      "MvAddress": "D1000",
+      "MvOnOff": false,
+      "PvAddress": "D1001",
+      "SpAddress": "D1002",
+      "UseSp": true,
+      "DataType": "INT16",
+      "MvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 100,
+        "Unit": "%"
+      },
+      "PvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 100,
+        "Unit": "%"
+      },
+      "SpRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 100,
+        "Unit": "%"
+      },
+      "InitialPv": 50,
+      "InternalSp": 60,
+      "StopPv": "Hold",
+      "StopPvValue": 50,
+      "OnCommError": "StopSimulation",
+      "SafeMv": 0,
+      "Recover": "Manual",
+      "Params": {
+        "height": 2000,
+        "area": 1.8,
+        "qin": 30,
+        "kout": 2,
+        "valve": 2,
+        "dead": 1,
+        "sens": 0.5,
+        "noise": 0.2,
+        "diameter": 0
+      }
+    },
+    {
+      "Name": "TIC-201 洗浄槽 ヒーター",
+      "Description": "電気ヒーターの加熱出力",
+      "Kind": "Heater",
+      "MvAddress": "D1010",
+      "MvOnOff": false,
+      "PvAddress": "D1011",
+      "SpAddress": "D1012",
+      "UseSp": true,
+      "DataType": "INT16",
+      "MvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 100,
+        "Unit": "%"
+      },
+      "PvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 200,
+        "Unit": "℃"
+      },
+      "SpRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 200,
+        "Unit": "℃"
+      },
+      "InitialPv": 25,
+      "InternalSp": 80,
+      "StopPv": "Hold",
+      "StopPvValue": 25,
+      "OnCommError": "StopSimulation",
+      "SafeMv": 0,
+      "Recover": "Manual",
+      "Params": {
+        "cap": 2,
+        "pmax": 10,
+        "amb": 25,
+        "hloss": 0.06,
+        "dead": 5,
+        "sens": 3,
+        "noise": 0.1
+      }
+    },
+    {
+      "Name": "SIC-301 搬送コンベア",
+      "Description": "インバータ周波数指令",
+      "Kind": "Motor",
+      "MvAddress": "D1020",
+      "MvOnOff": false,
+      "PvAddress": "D1022",
+      "SpAddress": "D1024",
+      "UseSp": true,
+      "DataType": "FLOAT32",
+      "MvRange": {
+        "RawMin": 0,
+        "RawMax": 60,
+        "EngMin": 0,
+        "EngMax": 60,
+        "Unit": "Hz"
+      },
+      "PvRange": {
+        "RawMin": 0,
+        "RawMax": 1800,
+        "EngMin": 0,
+        "EngMax": 1800,
+        "Unit": "rpm"
+      },
+      "SpRange": {
+        "RawMin": 0,
+        "RawMax": 1800,
+        "EngMin": 0,
+        "EngMax": 1800,
+        "Unit": "rpm"
+      },
+      "InitialPv": 0,
+      "InternalSp": 1200,
+      "StopPv": "Hold",
+      "StopPvValue": 0,
+      "OnCommError": "StopSimulation",
+      "SafeMv": 0,
+      "Recover": "Manual",
+      "Params": {
+        "nmax": 1800,
+        "tau": 1.5,
+        "acc": 900,
+        "load": 20,
+        "dead": 0.2,
+        "sens": 0.1,
+        "noise": 0.3,
+        "motorMode": 1,
+        "moment": 0.1,
+        "torque": 5,
+        "damping": 0.002,
+        "speedband": 5
+      }
+    },
+    {
+      "Name": "FIC-102 薬注 供給流量",
+      "Description": "次亜塩素酸ソーダ注入ライン",
+      "Kind": "Flow",
+      "MvAddress": "D1030",
+      "MvOnOff": false,
+      "PvAddress": "D1031",
+      "SpAddress": "D1032",
+      "UseSp": true,
+      "DataType": "INT16",
+      "MvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 100,
+        "Unit": "%"
+      },
+      "PvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 50,
+        "Unit": "m³/h"
+      },
+      "SpRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 50,
+        "Unit": "m³/h"
+      },
+      "InitialPv": 0,
+      "InternalSp": 30,
+      "StopPv": "Hold",
+      "StopPvValue": 0,
+      "OnCommError": "StopSimulation",
+      "SafeMv": 0,
+      "Recover": "Manual",
+      "Params": {
+        "qmax": 50,
+        "char": 0,
+        "res": 20,
+        "tau": 1,
+        "dead": 0.5,
+        "pvar": 2,
+        "sens": 0.2,
+        "noise": 0.8
+      }
+    },
+    {
+      "Name": "TIC-401 冷却水 チラー",
+      "Description": "冷却水出口温度",
+      "Kind": "Chiller",
+      "MvAddress": "D1040",
+      "MvOnOff": false,
+      "PvAddress": "D1041",
+      "SpAddress": "D1042",
+      "UseSp": true,
+      "DataType": "INT16",
+      "MvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 100,
+        "Unit": "%"
+      },
+      "PvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 50,
+        "Unit": "℃"
+      },
+      "SpRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 50,
+        "Unit": "℃"
+      },
+      "InitialPv": 25,
+      "InternalSp": 12,
+      "StopPv": "Hold",
+      "StopPvValue": 25,
+      "OnCommError": "StopSimulation",
+      "SafeMv": 0,
+      "Recover": "Manual",
+      "Params": {
+        "cmax": 12,
+        "cap": 3,
+        "amb": 25,
+        "load": 4,
+        "hloss": 0.1,
+        "resp": 10,
+        "dead": 6,
+        "tmin": 3,
+        "sens": 2,
+        "noise": 0.05
+      }
+    },
+    {
+      "Name": "PIC-501 計装エア 圧力",
+      "Description": "レシーバタンク圧力",
+      "Kind": "Pressure",
+      "MvAddress": "D1050",
+      "MvOnOff": false,
+      "PvAddress": "D1051",
+      "SpAddress": "D1052",
+      "UseSp": true,
+      "DataType": "INT16",
+      "MvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 100,
+        "Unit": "%"
+      },
+      "PvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 500,
+        "Unit": "kPa(g)"
+      },
+      "SpRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 500,
+        "Unit": "kPa(g)"
+      },
+      "InitialPv": 0,
+      "InternalSp": 300,
+      "StopPv": "Hold",
+      "StopPvValue": 0,
+      "OnCommError": "StopSimulation",
+      "SafeMv": 0,
+      "Recover": "Manual",
+      "Params": {
+        "vol": 2,
+        "temp": 20,
+        "qsup": 150,
+        "qout": 20,
+        "leak": 20,
+        "resp": 0.5,
+        "dead": 0.3,
+        "sens": 0.1,
+        "noise": 0.3
+      }
+    },
+    {
+      "Name": "TIC-601 蒸気加熱槽",
+      "Description": "蒸気弁によるジャケット・コイル加熱の温度制御",
+      "Kind": "Steam",
+      "MvAddress": "D1060",
+      "MvOnOff": false,
+      "PvAddress": "D1061",
+      "SpAddress": "D1062",
+      "UseSp": true,
+      "DataType": "INT16",
+      "MvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 100,
+        "Unit": "%"
+      },
+      "PvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 200,
+        "Unit": "℃"
+      },
+      "SpRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 200,
+        "Unit": "℃"
+      },
+      "InitialPv": 25,
+      "InternalSp": 90,
+      "StopPv": "Hold",
+      "StopPvValue": 25,
+      "OnCommError": "StopSimulation",
+      "SafeMv": 0,
+      "Recover": "Manual",
+      "Params": {
+        "cap": 6,
+        "pmax": 40,
+        "ts": 120,
+        "ua": 1,
+        "char": 1,
+        "db": 3,
+        "dead": 8,
+        "hloss": 0.2,
+        "amb": 25,
+        "load": 0,
+        "sens": 4,
+        "noise": 0.1
+      }
+    },
+    {
+      "Name": "FIC-707 流量（インバーターポンプ）",
+      "Description": "ポンプ回転数指令 / MVを上げるとPVが上がる",
+      "Kind": "PumpFlow",
+      "MvAddress": "D1070",
+      "MvOnOff": false,
+      "PvAddress": "D1071",
+      "SpAddress": "D1072",
+      "UseSp": true,
+      "DataType": "INT16",
+      "MvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 100,
+        "Unit": "%"
+      },
+      "PvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 50,
+        "Unit": "m³/h"
+      },
+      "SpRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 50,
+        "Unit": "m³/h"
+      },
+      "InitialPv": 0,
+      "InternalSp": 30,
+      "StopPv": "Hold",
+      "StopPvValue": 0,
+      "OnCommError": "StopSimulation",
+      "SafeMv": 0,
+      "Recover": "Manual",
+      "Params": {
+        "qmax": 50,
+        "hmax": 30,
+        "hstatic": 0,
+        "res": 0,
+        "tau": 1,
+        "dead": 0.5,
+        "pvar": 2,
+        "sens": 0.2,
+        "noise": 0.8
+      }
+    },
+    {
+      "Name": "LIC-708 液面（給水ポンプ）",
+      "Description": "ポンプ回転数指令 / MVを上げるとPVが上がる",
+      "Kind": "LevelPumpIn",
+      "MvAddress": "D1080",
+      "MvOnOff": false,
+      "PvAddress": "D1082",
+      "SpAddress": "D1084",
+      "UseSp": true,
+      "DataType": "FLOAT32",
+      "MvRange": {
+        "RawMin": 0,
+        "RawMax": 60,
+        "EngMin": 0,
+        "EngMax": 60,
+        "Unit": "Hz"
+      },
+      "PvRange": {
+        "RawMin": 0.0,
+        "RawMax": 2000.0,
+        "EngMin": 0.0,
+        "EngMax": 2000.0,
+        "Unit": "mm"
+      },
+      "SpRange": {
+        "RawMin": 0.0,
+        "RawMax": 2000.0,
+        "EngMin": 0.0,
+        "EngMax": 2000.0,
+        "Unit": "mm"
+      },
+      "InitialPv": 1000.0,
+      "InternalSp": 1200.0,
+      "StopPv": "Hold",
+      "StopPvValue": 1000.0,
+      "OnCommError": "StopSimulation",
+      "SafeMv": 0,
+      "Recover": "Manual",
+      "Params": {
+        "height": 2000,
+        "area": 1.8,
+        "qmax": 30,
+        "hmax": 30,
+        "hstatic": 0,
+        "kout": 2,
+        "resp": 2,
+        "dead": 1,
+        "sens": 0.5,
+        "noise": 0.2,
+        "diameter": 1500
+      }
+    },
+    {
+      "Name": "LIC-709 液面（排水ポンプ）",
+      "Description": "ポンプ回転数指令 / MVを上げるとPVが下がる",
+      "Kind": "LevelPumpOut",
+      "MvAddress": "D1090",
+      "MvOnOff": false,
+      "PvAddress": "D1091",
+      "SpAddress": "D1092",
+      "UseSp": true,
+      "DataType": "INT16",
+      "MvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 100,
+        "Unit": "%"
+      },
+      "PvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 100,
+        "Unit": "%"
+      },
+      "SpRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 100,
+        "Unit": "%"
+      },
+      "InitialPv": 50,
+      "InternalSp": 60,
+      "StopPv": "Hold",
+      "StopPvValue": 50,
+      "OnCommError": "StopSimulation",
+      "SafeMv": 0,
+      "Recover": "Manual",
+      "Params": {
+        "height": 2000,
+        "area": 1.8,
+        "qmax": 30,
+        "hmax": 30,
+        "hstatic": 0,
+        "qin": 15,
+        "resp": 2,
+        "dead": 1,
+        "sens": 0.5,
+        "noise": 0.2,
+        "diameter": 0
+      }
+    },
+    {
+      "Name": "LIC-710 液面（排水弁）",
+      "Description": "排水弁開度 / MVを上げるとPVが下がる",
+      "Kind": "LevelDrainValve",
+      "MvAddress": "D1100",
+      "MvOnOff": false,
+      "PvAddress": "D1101",
+      "SpAddress": "D1102",
+      "UseSp": true,
+      "DataType": "INT16",
+      "MvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 100,
+        "Unit": "%"
+      },
+      "PvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 100,
+        "Unit": "%"
+      },
+      "SpRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 100,
+        "Unit": "%"
+      },
+      "InitialPv": 50,
+      "InternalSp": 60,
+      "StopPv": "Hold",
+      "StopPvValue": 50,
+      "OnCommError": "StopSimulation",
+      "SafeMv": 0,
+      "Recover": "Manual",
+      "Params": {
+        "height": 2000,
+        "area": 1.8,
+        "qin": 30,
+        "kout": 6,
+        "char": 0,
+        "valve": 2,
+        "dead": 1,
+        "sens": 0.5,
+        "noise": 0.2,
+        "diameter": 0
+      }
+    },
+    {
+      "Name": "TIC-711 温度（冷却水弁）",
+      "Description": "冷却水弁開度 / MVを上げるとPVが下がる",
+      "Kind": "CoolingWater",
+      "MvAddress": "D1110",
+      "MvOnOff": false,
+      "PvAddress": "D1111",
+      "SpAddress": "D1112",
+      "UseSp": true,
+      "DataType": "INT16",
+      "MvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 100,
+        "Unit": "%"
+      },
+      "PvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 100,
+        "Unit": "℃"
+      },
+      "SpRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 100,
+        "Unit": "℃"
+      },
+      "InitialPv": 25,
+      "InternalSp": 18,
+      "StopPv": "Hold",
+      "StopPvValue": 25,
+      "OnCommError": "StopSimulation",
+      "SafeMv": 0,
+      "Recover": "Manual",
+      "Params": {
+        "cap": 130.7,
+        "cflow": 1.2,
+        "tcool": 5,
+        "ua": 0.5,
+        "load": 2,
+        "amb": 25,
+        "hloss": 0.01,
+        "char": 0,
+        "resp": 1,
+        "dead": 3,
+        "sens": 1,
+        "noise": 0.05
+      }
+    },
+    {
+      "Name": "PIC-712 圧力（供給弁）",
+      "Description": "供給弁開度 / MVを上げるとPVが上がる",
+      "Kind": "PressureSupplyValve",
+      "MvAddress": "D1120",
+      "MvOnOff": false,
+      "PvAddress": "D1121",
+      "SpAddress": "D1122",
+      "UseSp": true,
+      "DataType": "INT16",
+      "MvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 100,
+        "Unit": "%"
+      },
+      "PvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 600,
+        "Unit": "kPa(g)"
+      },
+      "SpRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 600,
+        "Unit": "kPa(g)"
+      },
+      "InitialPv": 200,
+      "InternalSp": 300,
+      "StopPv": "Hold",
+      "StopPvValue": 200,
+      "OnCommError": "StopSimulation",
+      "SafeMv": 0,
+      "Recover": "Manual",
+      "Params": {
+        "vol": 2,
+        "temp": 20,
+        "qmax": 150,
+        "psupply": 600,
+        "qout": 20,
+        "leak": 0,
+        "char": 0,
+        "resp": 0.5,
+        "dead": 0.3,
+        "sens": 0.1,
+        "noise": 0.3
+      }
+    },
+    {
+      "Name": "PIC-713 圧力（排気弁）",
+      "Description": "排気弁開度 / MVを上げるとPVが下がる",
+      "Kind": "PressureExhaustValve",
+      "MvAddress": "D1130",
+      "MvOnOff": false,
+      "PvAddress": "D1131",
+      "SpAddress": "D1132",
+      "UseSp": true,
+      "DataType": "INT16",
+      "MvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 100,
+        "Unit": "%"
+      },
+      "PvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 600,
+        "Unit": "kPa(g)"
+      },
+      "SpRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 600,
+        "Unit": "kPa(g)"
+      },
+      "InitialPv": 200,
+      "InternalSp": 300,
+      "StopPv": "Hold",
+      "StopPvValue": 200,
+      "OnCommError": "StopSimulation",
+      "SafeMv": 0,
+      "Recover": "Manual",
+      "Params": {
+        "vol": 2,
+        "temp": 20,
+        "qmax": 150,
+        "qsup": 20,
+        "leak": 0,
+        "char": 0,
+        "resp": 0.5,
+        "dead": 0.3,
+        "sens": 0.1,
+        "noise": 0.3
+      }
+    },
+    {
+      "Name": "PIC-714 圧力（インバーターポンプ）",
+      "Description": "ポンプ回転数指令 / MVを上げるとPVが上がる",
+      "Kind": "PumpPressure",
+      "MvAddress": "D1140",
+      "MvOnOff": false,
+      "PvAddress": "D1141",
+      "SpAddress": "D1142",
+      "UseSp": true,
+      "DataType": "INT16",
+      "MvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 100,
+        "Unit": "%"
+      },
+      "PvRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 600,
+        "Unit": "kPa(g)"
+      },
+      "SpRange": {
+        "RawMin": 0,
+        "RawMax": 4000,
+        "EngMin": 0,
+        "EngMax": 600,
+        "Unit": "kPa(g)"
+      },
+      "InitialPv": 0,
+      "InternalSp": 200,
+      "StopPv": "Hold",
+      "StopPvValue": 0,
+      "OnCommError": "StopSimulation",
+      "SafeMv": 0,
+      "Recover": "Manual",
+      "Params": {
+        "pmax": 500,
+        "qmax": 50,
+        "qout": 20,
+        "tau": 1,
+        "dead": 0.2,
+        "sens": 0.1,
+        "noise": 0.2
+      }
+    }
+  ],
+  "Data": {
+    "TrendMinutes": 60
+  }
+}

@@ -1,0 +1,80 @@
+<Window x:Class="PidSimulator.App.Views.ParameterWizardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="条件からモデルパラメータを計算" Icon="/Assets/AppIcon.ico"
+        Width="820" Height="740" MinWidth="700" MinHeight="540" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource InkBrush}" FontFamily="{StaticResource UiFont}" FontSize="13">
+    <Window.Resources>
+        <DataTemplate x:Key="ConditionInputTemplate">
+            <Grid Margin="0,0,8,14">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="120"/><ColumnDefinition Width="70"/></Grid.ColumnDefinitions>
+                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                <TextBlock Text="{Binding Field.Label}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,10,0"/>
+                <TextBox Grid.Column="1" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Right" ToolTip="{Binding AllowedRange}"/>
+                <TextBlock Grid.Column="2" Text="{Binding Field.Unit}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Text="{Binding Field.Hint}" Foreground="{StaticResource Ink3Brush}" TextWrapping="Wrap" Margin="0,4,0,0" FontSize="12"/>
+                <TextBlock Grid.Row="2" Grid.ColumnSpan="3" Text="{Binding AllowedRange}" Foreground="{StaticResource Ink3Brush}" TextWrapping="Wrap" FontSize="11"/>
+            </Grid>
+        </DataTemplate>
+    </Window.Resources>
+    <DockPanel Margin="20">
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+            <TextBlock Text="{Binding ModelName}" FontSize="20" FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding StepLabel}" FontSize="15" Margin="0,8,0,0"/>
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+            <TextBlock Text="{Binding Error}" Foreground="{StaticResource AlarmBrush}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="キャンセル" IsCancel="True" MinWidth="90"/>
+                <Button Content="戻る" Command="{Binding BackCommand}" IsEnabled="{Binding CanBack}" MinWidth="80" Margin="8,0"/>
+                <Button Content="{Binding NextLabel}" Command="{Binding NextCommand}" MinWidth="140" IsDefault="True"/>
+            </StackPanel>
+        </StackPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <Grid>
+                <StackPanel Visibility="{Binding StepIndex, Converter={StaticResource IndexToVis}, ConverterParameter=0}">
+                    <TextBlock Text="近い用途を選び、次の画面で実際の条件に合わせてください。" TextWrapping="Wrap" Margin="0,0,0,16"/>
+                    <ListBox ItemsSource="{Binding Scenarios}" SelectedItem="{Binding SelectedScenario}" MinHeight="100" DisplayMemberPath="Name" Padding="8"/>
+                    <TextBlock Text="{Binding SelectedScenario.Description}" TextWrapping="Wrap" Margin="0,16,0,0"/>
+                </StackPanel>
+                <StackPanel Visibility="{Binding StepIndex, Converter={StaticResource IndexToVis}, ConverterParameter=1}">
+                    <TextBlock Text="{Binding SelectedScenario.Description}" TextWrapping="Wrap" Foreground="{StaticResource Ink2Brush}" Margin="0,0,0,16"/>
+                    <ItemsControl ItemsSource="{Binding BasicInputs}" ItemTemplate="{StaticResource ConditionInputTemplate}"/>
+                    <Expander Header="詳細条件（分からなければ初期値のままで使えます）" Margin="0,8,0,0" Visibility="{Binding HasAdvanced, Converter={StaticResource BoolToVis}}">
+                        <ItemsControl ItemsSource="{Binding AdvancedInputs}" ItemTemplate="{StaticResource ConditionInputTemplate}" Margin="12,16,0,0"/>
+                    </Expander>
+                </StackPanel>
+                <StackPanel Visibility="{Binding StepIndex, Converter={StaticResource IndexToVis}, ConverterParameter=2}">
+                    <TextBlock Text="表示したモデルパラメータをまとめて反映します。初期PV・SP・PLCレンジは変更しません。同じ開始条件で試すときは、登録内容を確認してからリセットしてください。" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                    <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="3" Padding="12" Margin="0,0,0,16" Visibility="{Binding HasWarnings, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <TextBlock Text="登録済み設定との違い" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <ItemsControl ItemsSource="{Binding Warnings}">
+                                <ItemsControl.ItemTemplate><DataTemplate>
+                                    <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,0,0,8" LineHeight="20"/>
+                                </DataTemplate></ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                    <Grid Margin="8,0,8,6">
+                        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="120"/><ColumnDefinition Width="28"/><ColumnDefinition Width="120"/><ColumnDefinition Width="90"/></Grid.ColumnDefinitions>
+                        <TextBlock Text="パラメータ"/><TextBlock Grid.Column="1" Text="現在"/><TextBlock Grid.Column="3" Text="計算結果"/>
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding Preview}">
+                        <ItemsControl.ItemTemplate><DataTemplate>
+                            <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="120"/><ColumnDefinition Width="28"/><ColumnDefinition Width="120"/><ColumnDefinition Width="90"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Label}" TextWrapping="Wrap" Margin="0,0,8,0"/><TextBlock Grid.Column="1" Text="{Binding Before}" TextWrapping="Wrap"/>
+                                    <TextBlock Grid.Column="2" Text="→"/><TextBlock Grid.Column="3" Text="{Binding After}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                    <TextBlock Grid.Column="4" Text="{Binding Unit}"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate></ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding Explanation}" TextWrapping="Wrap" Margin="0,16,0,0" LineHeight="22"/>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

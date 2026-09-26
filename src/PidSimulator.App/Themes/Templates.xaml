@@ -1,0 +1,156 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:vm="clr-namespace:PidSimulator.App.ViewModels"
+                    xmlns:ctl="clr-namespace:PidSimulator.App.Controls">
+
+    <ctl:InverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
+    <ctl:EnumEqualsConverter x:Key="EnumEq"/>
+    <ctl:IndexToVisibilityConverter x:Key="IndexToVis"/>
+    <ctl:InverseBoolConverter x:Key="InvBool"/>
+
+    <!-- 計装タグ風バブル（盤面計器：円＋水平線） -->
+    <DataTemplate x:Key="IsaBubble" DataType="{x:Type vm:TargetViewModel}">
+        <Grid Width="40" Height="40">
+            <Ellipse Stroke="{StaticResource Ink2Brush}" StrokeThickness="1.5" Fill="{StaticResource SurfaceBrush}"/>
+            <Rectangle Height="1" Fill="{StaticResource Ink2Brush}" VerticalAlignment="Center" Margin="1,0"/>
+            <TextBlock Text="{Binding IsaLetters}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" FontWeight="SemiBold"
+                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,7,0,0"/>
+            <TextBlock Text="{Binding IsaNumber}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{StaticResource Ink2Brush}"
+                       HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,7"/>
+        </Grid>
+    </DataTemplate>
+
+    <!-- 状態バッジ：停止 / 制御中 / プレビュー / 異常 -->
+    <DataTemplate x:Key="StateBadge" DataType="{x:Type vm:TargetViewModel}">
+        <Border x:Name="b" CornerRadius="11" Height="21" Padding="8,0" Margin="0,0,6,0" BorderThickness="1"
+                Background="{StaticResource BgBrush}" BorderBrush="{StaticResource LineBrush}">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Ellipse x:Name="dot" Width="7" Height="7" Fill="{StaticResource StopBrush}" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                <TextBlock x:Name="tx" Text="{Binding StateText}" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource StopBrush}"/>
+            </StackPanel>
+        </Border>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding StateKind}" Value="run">
+                <Setter TargetName="b" Property="Background" Value="{StaticResource RunBgBrush}"/>
+                <Setter TargetName="b" Property="BorderBrush" Value="Transparent"/>
+                <Setter TargetName="dot" Property="Fill" Value="{StaticResource RunBrush}"/>
+                <Setter TargetName="tx" Property="Foreground" Value="{StaticResource RunBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding StateKind}" Value="preview">
+                <Setter TargetName="b" Property="Background" Value="{StaticResource PrevBgBrush}"/>
+                <Setter TargetName="b" Property="BorderBrush" Value="Transparent"/>
+                <Setter TargetName="dot" Property="Fill" Value="{StaticResource PrevBrush}"/>
+                <Setter TargetName="tx" Property="Foreground" Value="{StaticResource PrevBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding StateKind}" Value="alarm">
+                <Setter TargetName="b" Property="Background" Value="{StaticResource AlarmBrush}"/>
+                <Setter TargetName="b" Property="BorderBrush" Value="Transparent"/>
+                <Setter TargetName="dot" Property="Fill" Value="White"/>
+                <Setter TargetName="tx" Property="Foreground" Value="White"/>
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+
+    <DataTemplate x:Key="ForceBadge" DataType="{x:Type vm:TargetViewModel}">
+        <Border CornerRadius="11" Height="21" Padding="8,0" Margin="0,0,6,0" BorderThickness="1"
+                Background="{StaticResource ForceBgBrush}" BorderBrush="{StaticResource ForceLineBrush}"
+                Visibility="{Binding HasForce, Converter={StaticResource BoolToVis}}">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Rectangle Width="6" Height="6" Fill="{StaticResource ForceBrush}" Margin="0,0,6,0" VerticalAlignment="Center">
+                    <Rectangle.RenderTransform><RotateTransform Angle="45" CenterX="3" CenterY="3"/></Rectangle.RenderTransform>
+                </Rectangle>
+                <TextBlock Text="{Binding ForceText}" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource ForceBrush}"/>
+            </StackPanel>
+        </Border>
+    </DataTemplate>
+
+    <DataTemplate x:Key="CommIndicator" DataType="{x:Type vm:TargetViewModel}">
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Ellipse x:Name="dot" Width="8" Height="8" Fill="{StaticResource RunBrush}" Margin="0,0,5,0" VerticalAlignment="Center"/>
+            <TextBlock x:Name="tx" Text="{Binding CommText}" FontSize="12" Foreground="{StaticResource Ink2Brush}" VerticalAlignment="Center"/>
+        </StackPanel>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding CommKind}" Value="alarm">
+                <Setter TargetName="dot" Property="Fill" Value="{StaticResource AlarmBrush}"/>
+                <Setter TargetName="tx" Property="Foreground" Value="{StaticResource AlarmBrush}"/>
+                <Setter TargetName="tx" Property="FontWeight" Value="SemiBold"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding CommKind}" Value="off">
+                <Setter TargetName="dot" Property="Fill" Value="{StaticResource PrevBrush}"/>
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+
+    <!-- カード内の SP/PV/MV セル -->
+    <DataTemplate x:Key="CardCell" DataType="{x:Type vm:SignalViewModel}">
+        <Border x:Name="b" Padding="12,7" Background="Transparent">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding ShortLabel}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Ink3Brush}"/>
+                    <TextBlock x:Name="f" Text=" FORCE" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource ForceBrush}" Visibility="Collapsed"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding ValueText}" FontFamily="{StaticResource MonoFont}" FontSize="19"/>
+                    <TextBlock Text="{Binding Unit}" FontSize="11" Foreground="{StaticResource Ink3Brush}" VerticalAlignment="Bottom" Margin="3,0,0,3"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding IsForced}" Value="True">
+                <Setter TargetName="b" Property="Background" Value="{StaticResource ForceBgBrush}"/>
+                <Setter TargetName="f" Property="Visibility" Value="Visible"/>
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+
+    <!-- 詳細画面の SP/PV/MV ブロック -->
+    <DataTemplate x:Key="ValueBlock" DataType="{x:Type vm:SignalViewModel}">
+        <Border x:Name="b" Style="{StaticResource Panel}" Padding="12,10">
+            <StackPanel>
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding Source}" FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                               Foreground="{StaticResource Ink3Brush}" VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="lbl" Text="{Binding Label}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <Border CornerRadius="9" Padding="7,0" Margin="8,0,0,0" Height="18" Background="{StaticResource ForceBgBrush}"
+                                BorderBrush="{StaticResource ForceLineBrush}" BorderThickness="1"
+                                Visibility="{Binding IsForced, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="FORCE" FontSize="10.5" FontWeight="Bold" Foreground="{StaticResource ForceBrush}" VerticalAlignment="Center"/>
+                        </Border>
+                    </StackPanel>
+                </DockPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,6">
+                    <TextBlock Text="{Binding ValueText}" FontFamily="{StaticResource MonoFont}" FontSize="32"/>
+                    <TextBlock Text="{Binding Unit}" FontSize="13" Foreground="{StaticResource Ink3Brush}" VerticalAlignment="Bottom" Margin="6,0,0,6"/>
+                </StackPanel>
+                <ProgressBar x:Name="bar" Style="{StaticResource RangeBar}" Value="{Binding Fraction, Mode=OneWay}"/>
+                <DockPanel Margin="0,4,0,0">
+                    <TextBlock DockPanel.Dock="Left" Text="{Binding MinText}" Style="{StaticResource Hint}"/>
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding MaxText}" Style="{StaticResource Hint}"/>
+                    <TextBlock HorizontalAlignment="Center" Style="{StaticResource Hint}">
+                        <Run Text="RAW"/> <Run Text="{Binding RawText, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource Ink2Brush}"/>
+                        <Run Text="{Binding RawRangeText, Mode=OneWay}"/>
+                    </TextBlock>
+                </DockPanel>
+            </StackPanel>
+        </Border>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding Key}" Value="sp">
+                <Setter TargetName="lbl" Property="Foreground" Value="{StaticResource SeriesSpBrush}"/>
+                <Setter TargetName="bar" Property="Foreground" Value="{StaticResource SeriesSpBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Key}" Value="pv">
+                <Setter TargetName="lbl" Property="Foreground" Value="{StaticResource SeriesPvBrush}"/>
+                <Setter TargetName="bar" Property="Foreground" Value="{StaticResource SeriesPvBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Key}" Value="mv">
+                <Setter TargetName="lbl" Property="Foreground" Value="{StaticResource SeriesMvBrush}"/>
+                <Setter TargetName="bar" Property="Foreground" Value="{StaticResource SeriesMvBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding IsForced}" Value="True">
+                <Setter TargetName="b" Property="Background" Value="{StaticResource ForceBgBrush}"/>
+                <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource ForceLineBrush}"/>
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+</ResourceDictionary>

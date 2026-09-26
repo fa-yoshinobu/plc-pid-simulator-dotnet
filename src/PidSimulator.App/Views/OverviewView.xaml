@@ -1,0 +1,135 @@
+﻿<UserControl x:Class="PidSimulator.App.Views.OverviewView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:PidSimulator.App.ViewModels"
+             xmlns:ctl="clr-namespace:PidSimulator.App.Controls">
+    <UserControl.Resources>
+        <DataTemplate x:Key="Card" DataType="{x:Type vm:TargetViewModel}">
+            <Border x:Name="card" Width="330" Margin="0,0,12,12" Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="4" Cursor="Hand">
+                <Border.InputBindings>
+                    <MouseBinding MouseAction="LeftClick" Command="{Binding OpenCommand}"/>
+                </Border.InputBindings>
+                <StackPanel>
+                    <Border x:Name="head" Padding="12,10,8,8" CornerRadius="3,3,0,0">
+                        <DockPanel>
+                            <ContentControl DockPanel.Dock="Left" Content="{Binding}" ContentTemplate="{StaticResource IsaBubble}" Focusable="False"/>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource IconBtn}" Content="⋯" VerticalAlignment="Top"
+                                    Click="MenuButton_Click" ToolTip="操作メニュー" AutomationProperties.Name="操作メニュー">
+                                <Button.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="詳細を開く" Command="{Binding OpenCommand}"/>
+                                        <MenuItem Header="登録内容編集…" Command="{Binding EditCommand}"/>
+                                        <MenuItem Header="複製…" Command="{Binding DuplicateCommand}"/>
+                                        <Separator/>
+                                        <MenuItem Header="削除…" Command="{Binding DeleteCommand}" Foreground="{StaticResource AlarmBrush}"/>
+                                    </ContextMenu>
+                                </Button.ContextMenu>
+                            </Button>
+                            <StackPanel Margin="10,0,4,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding Subtitle}" Style="{StaticResource Hint}" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <WrapPanel Margin="12,0,12,8">
+                        <ContentControl Content="{Binding}" ContentTemplate="{StaticResource StateBadge}" Focusable="False"/>
+                        <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ForceBadge}" Focusable="False"/>
+                        <ContentControl Content="{Binding}" ContentTemplate="{StaticResource CommIndicator}" Focusable="False" Margin="2,0,0,0"/>
+                    </WrapPanel>
+
+                    <Border Margin="12,0,12,8" Padding="8,4" CornerRadius="3" Background="{StaticResource AlarmBgBrush}"
+                            Visibility="{Binding HasAlarm, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding Alarm}" Foreground="{StaticResource AlarmBrush}" FontSize="12" TextWrapping="Wrap"/>
+                    </Border>
+
+                    <Border BorderBrush="{StaticResource Line2Brush}" BorderThickness="0,1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition/><ColumnDefinition Width="1"/><ColumnDefinition/><ColumnDefinition Width="1"/><ColumnDefinition/>
+                            </Grid.ColumnDefinitions>
+                            <ContentControl Grid.Column="0" Content="{Binding Sp}" ContentTemplate="{StaticResource CardCell}" Focusable="False"/>
+                            <Rectangle Grid.Column="1" Fill="{StaticResource Line2Brush}"/>
+                            <ContentControl Grid.Column="2" Content="{Binding Pv}" ContentTemplate="{StaticResource CardCell}" Focusable="False"/>
+                            <Rectangle Grid.Column="3" Fill="{StaticResource Line2Brush}"/>
+                            <ContentControl Grid.Column="4" Content="{Binding Mv}" ContentTemplate="{StaticResource CardCell}" Focusable="False"/>
+                        </Grid>
+                    </Border>
+
+                    <ctl:Sparkline Height="46" Data="{Binding Spark}"/>
+
+                    <Border BorderBrush="{StaticResource Line2Brush}" BorderThickness="0,1,0,0" Padding="12,7">
+                        <WrapPanel>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,0,14,0">
+                                <Run Text="PV書込先"/> <Run Text="{Binding PvAddress, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource InkBrush}"/>
+                            </TextBlock>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,0,14,0">
+                                <Run Text="MV読込"/> <Run Text="{Binding MvAddress, Mode=OneWay}" FontFamily="{StaticResource MonoFont}"/>
+                            </TextBlock>
+                            <TextBlock Style="{StaticResource Hint}" Text="{Binding CycleText}"/>
+                        </WrapPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <Trigger SourceName="card" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="card" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                </Trigger>
+                <DataTrigger Binding="{Binding HasForce}" Value="True">
+                    <Setter TargetName="card" Property="BorderBrush" Value="{StaticResource ForceLineBrush}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StateKind}" Value="alarm">
+                    <Setter TargetName="card" Property="BorderBrush" Value="{StaticResource AlarmBrush}"/>
+                    <Setter TargetName="head" Property="Background" Value="{StaticResource AlarmBgBrush}"/>
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+    <!-- 起動直後・新規プロジェクトの空画面（仕様 §4） -->
+    <Border HorizontalAlignment="Center" VerticalAlignment="Top" Margin="16,90,16,16" MaxWidth="540" Padding="36,32"
+            Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1.5" CornerRadius="6"
+            Visibility="{Binding Main.HasTargets, Converter={StaticResource InvBoolToVis}}">
+        <StackPanel>
+            <Grid Width="52" Height="52" HorizontalAlignment="Center">
+                <Ellipse Stroke="{StaticResource Ink2Brush}" StrokeThickness="1.5"/>
+                <Rectangle Height="1" Fill="{StaticResource Ink2Brush}" VerticalAlignment="Center" Margin="1,0"/>
+                <TextBlock Text="PID" FontFamily="{StaticResource MonoFont}" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,9,0,0"/>
+                <TextBlock Text="SIM" FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="{StaticResource Ink2Brush}" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,9"/>
+            </Grid>
+            <TextBlock Text="制御対象が登録されていません" FontSize="17" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,14,0,6"/>
+            <TextBlock Foreground="{StaticResource Ink2Brush}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,20"
+                       Text="通信設定を保存してから、制御対象を登録します。登録中の接続テストは未接続でも一時的に通信します。「全制御開始」は必要に応じて接続してから運転を始めます。"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <Button Content="① 通信設定" Command="{Binding Main.OpenSettingsCommand}" CommandParameter="0"/>
+                <TextBlock Text="→" VerticalAlignment="Center" Margin="12,0" Foreground="{StaticResource Ink2Brush}"/>
+                <Button Content="② 制御対象を登録" Command="{Binding Main.RegisterCommand}"/>
+            </StackPanel>
+            <Button Content="プロジェクトを開く…" Command="{Binding Main.OpenProjectCommand}" HorizontalAlignment="Center" Margin="0,16,0,0"/>
+        </StackPanel>
+    </Border>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,16,4,4" Visibility="{Binding Main.HasTargets, Converter={StaticResource BoolToVis}}">
+        <StackPanel>
+            <WrapPanel Margin="0,0,0,12">
+                <TextBlock Text="制御対象一覧" FontSize="15" FontWeight="SemiBold" Margin="0,0,16,0" VerticalAlignment="Bottom"/>
+                <TextBlock Style="{StaticResource Hint}" VerticalAlignment="Bottom" Margin="0,0,0,1">
+                    <Run Text="登録"/> <Run Text="{Binding Main.TotalCount, Mode=OneWay}" Foreground="{StaticResource InkBrush}" FontWeight="SemiBold"/>
+                    <Run Text="　制御中"/> <Run Text="{Binding Main.RunningCount, Mode=OneWay}" Foreground="{StaticResource InkBrush}" FontWeight="SemiBold"/>
+                    <Run Text="　停止"/> <Run Text="{Binding Main.StoppedCount, Mode=OneWay}" Foreground="{StaticResource InkBrush}" FontWeight="SemiBold"/>
+                    <Run Text="　FORCE"/> <Run Text="{Binding Main.ForceCount, Mode=OneWay}" Foreground="{StaticResource InkBrush}" FontWeight="SemiBold"/>
+                    <Run Text="　異常"/> <Run Text="{Binding Main.AlarmCount, Mode=OneWay}" Foreground="{StaticResource InkBrush}" FontWeight="SemiBold"/>
+                </TextBlock>
+            </WrapPanel>
+            <ItemsControl ItemsSource="{Binding Main.Targets}" ItemTemplate="{StaticResource Card}" Focusable="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+    </Grid>
+</UserControl>

@@ -1,0 +1,21 @@
+﻿# ビルド出力
+bin/
+obj/
+publish/
+TestResults/
+artifacts/
+__pycache__/
+*.pyc
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# 実行時に作られるファイル
+*.psim.tmp
+
+# 個人の試験プロジェクト
+/新規プロジェクト.psim

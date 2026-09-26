@@ -1,0 +1,62 @@
+<Window x:Class="PidSimulator.App.Views.AboutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="バージョン情報" Icon="/Assets/AppIcon.ico"
+        Width="760" Height="580" MinWidth="680" MinHeight="480"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource InkBrush}"
+        FontFamily="{StaticResource UiFont}" FontSize="13" UseLayoutRounding="True">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="64"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <Image Source="/Assets/AppIcon.png" Width="48" Height="48" VerticalAlignment="Top" HorizontalAlignment="Left"/>
+                <StackPanel Grid.Column="1">
+                    <TextBlock Text="{Binding ProductName}" FontSize="21" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                    <TextBlock Margin="0,6,0,0"><Run Text="バージョン："/><Run Text="{Binding Version, Mode=OneWay}"/></TextBlock>
+                    <TextBlock Margin="0,4,0,0"><Run Text="開発元："/><Run Text="{Binding Company, Mode=OneWay}"/></TextBlock>
+                    <TextBlock Text="{Binding Copyright}" Margin="0,4,0,0"/>
+                    <TextBlock Margin="0,8,0,0" TextWrapping="Wrap">
+                        <Hyperlink NavigateUri="https://github.com/fa-yoshinobu/plc-pid-simulator-dotnet" RequestNavigate="OpenRepository">
+                            GitHub：fa-yoshinobu/plc-pid-simulator-dotnet
+                        </Hyperlink>
+                    </TextBlock>
+                </StackPanel>
+            </Grid>
+        </Border>
+        <TabControl Grid.Row="1" Margin="0,14,0,14">
+            <TabItem Header="使用ライブラリ">
+                <ListView ItemsSource="{Binding Libraries}" Margin="8" HorizontalContentAlignment="Stretch"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="Focusable" Value="False"/>
+                            <Setter Property="IsHitTestVisible" Value="False"/>
+                            <Setter Property="Padding" Value="0,5"/>
+                        </Style>
+                    </ListView.ItemContainerStyle>
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="名前" Width="215" DisplayMemberBinding="{Binding Name}"/>
+                            <GridViewColumn Header="バージョン" Width="95" DisplayMemberBinding="{Binding Version}"/>
+                            <GridViewColumn Header="ライセンス" Width="90" DisplayMemberBinding="{Binding License}"/>
+                            <GridViewColumn Header="用途" Width="235" DisplayMemberBinding="{Binding Purpose}"/>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </TabItem>
+            <TabItem Header="アプリのライセンス">
+                <TextBox Text="{Binding LicenseText, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True"
+                         Height="Auto" Margin="10" Padding="8" TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"/>
+            </TabItem>
+        </TabControl>
+        <Button Grid.Row="2" Content="閉じる" Style="{StaticResource BtnPrimary}" Width="90"
+                HorizontalAlignment="Right" IsCancel="True" IsDefault="True" Click="CloseWindow"/>
+    </Grid>
+</Window>

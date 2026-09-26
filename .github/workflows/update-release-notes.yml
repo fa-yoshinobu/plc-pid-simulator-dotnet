@@ -1,0 +1,60 @@
+name: Update release notes
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Published release tag to update (e.g. v0.1.0)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: virustotal-release-${{ inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout current release template
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Apply template to published release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          $raw = gh release view $env:RELEASE_TAG --repo $env:REPOSITORY --json body,assets,tagName,isDraft,publishedAt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $release = $raw | ConvertFrom-Json
+          if ($release.isDraft -or -not $release.publishedAt -or $release.tagName -cne $env:RELEASE_TAG) {
+            throw 'Select an existing published release.'
+          }
+          $expectedZip = "PidSimulator-$env:RELEASE_TAG-win-x64.zip"
+          if (@($release.assets).Count -ne 1 -or $release.assets[0].name -cne $expectedZip) {
+            throw 'The release must contain only the expected Windows x64 ZIP.'
+          }
+          $blocks = [regex]::Matches($release.body, '(?s)<!-- virustotal:start -->(.*?)<!-- virustotal:end -->')
+          if ($blocks.Count -ne 1 -or [regex]::Matches($release.body, '<!-- virustotal:(start|end) -->').Count -ne 2) {
+            throw 'A single VirusTotal result block is required.'
+          }
+          $content = $blocks[0].Groups[1].Value.Trim()
+          $urlPattern = 'https://www\.virustotal\.com/gui/file/[0-9a-f]{64}/detection'
+          $knownCompleted = $content -match '\A\*\*VirusTotal\s*検査済み\*\*' -or $content -match "\A\[VirusTotalの検査結果(?:を見る)?\]\($urlPattern\)\z"
+          $urls = @([regex]::Matches($content, $urlPattern) | ForEach-Object { $_.Value } | Sort-Object -Unique)
+          if (-not $knownCompleted -or $urls.Count -ne 1) {
+            throw 'A completed VirusTotal result is required. Finish the release check before updating its notes.'
+          }
+          $virusTotalContent = "[VirusTotalの検査結果]($($urls[0]))"
+          ./.github/scripts/render-release-notes.ps1 -Repository $env:REPOSITORY -ReleaseTag $env:RELEASE_TAG -VirusTotalContent $virusTotalContent -OutputPath 'artifacts/release-notes.md'
+          gh release edit $env:RELEASE_TAG --repo $env:REPOSITORY --notes-file 'artifacts/release-notes.md'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
