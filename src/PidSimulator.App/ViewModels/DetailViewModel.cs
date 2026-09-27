@@ -45,6 +45,7 @@ public sealed partial class DetailViewModel : ObservableObject
     public string DistUnit => Target.Model.Info.DistUnit;
     public double DistMax => Target.Model.Info.DistMax;
 
+    [ObservableProperty] private int _selectedTabIndex;
     [ObservableProperty] private string _eventFilter = "すべて";
     [ObservableProperty] private double _distValue;
     private double _previewMv;

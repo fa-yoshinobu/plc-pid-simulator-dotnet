@@ -62,22 +62,74 @@ public class SimulationTests
     }
 
     [Fact]
-    public void ManualResume_ClearsAlarmOnlyAfterPlcAnswers()
+    public void ManualAlarmReset_ClearsAlarmOnlyAfterPlcAnswers()
     {
         var (eng, plc, t) = Setup(ModelKind.Level);
         t.Start(eng.Log, out _);
         plc.SetFault("D0", true);
         eng.StepOnce();
 
-        t.RequestResume();
+        Assert.True(t.ResetAlarm(eng.Log));
         eng.StepOnce();
         Assert.Equal(CommStatus.Timeout, t.Snapshot().Comm);
 
         plc.SetFault("D0", false);
-        t.RequestResume();
+        Assert.True(t.ResetAlarm(eng.Log));
         eng.StepOnce();
         Assert.Equal(CommStatus.Ok, t.Snapshot().Comm);
         Assert.Null(t.Snapshot().Alarm);
+        Assert.Equal(RunState.Stopped, t.Snapshot().RunState);
+    }
+
+    [Fact]
+    public void ResetAllAlarms_OnlyClearsRecoveredTargets_AndPreservesStoppedState()
+    {
+        using var plc = new DummyPlc();
+        using var eng = new SimulationEngine(plc);
+        var targets = Enumerable.Range(0, 3).Select(i => new ControlTarget($"Target {i}", ModelKind.Level, seed: 1)
+        {
+            MvAddress = $"D{i * 10}", PvAddress = $"D{i * 10 + 1}", UseSp = false,
+        }).ToArray();
+        foreach (var target in targets)
+        {
+            eng.Add(target);
+            target.SetForce(ForceKey.Mv, true, 45, eng.Log);
+            Assert.True(target.Start(eng.Log, out _));
+        }
+        for (int i = 0; i < 20; i++) eng.StepOnce();
+        plc.SetFault(targets[0].MvAddress, true);
+        plc.SetFault(targets[1].MvAddress, true);
+        eng.StepOnce();
+        targets[2].Stop(eng.Log);
+
+        var before = targets.Select(t => t.Snapshot()).ToArray();
+        var histories = targets.Select(t => Enumerable.Range(0, t.Trend.Count).Select(i => t.Trend[i]).ToArray()).ToArray();
+        int normalLogCount = eng.Log.Snapshot().Count(e => e.TargetId == targets[2].Id);
+        plc.SetFault(targets[0].MvAddress, false);
+        Assert.Equal(2, eng.ResetAllAlarms());
+        eng.StepOnce();
+
+        Assert.Equal(CommStatus.Ok, targets[0].Comm);
+        Assert.Null(targets[0].Alarm);
+        Assert.Equal(CommStatus.Timeout, targets[1].Comm);
+        Assert.NotNull(targets[1].Alarm);
+        Assert.Equal(CommStatus.Ok, targets[2].Comm);
+        Assert.Null(targets[2].Alarm);
+        Assert.False(targets[2].ResetAlarm(eng.Log));
+        Assert.Equal(normalLogCount, eng.Log.Snapshot().Count(e => e.TargetId == targets[2].Id));
+        for (int i = 0; i < targets.Length; i++)
+        {
+            var after = targets[i].Snapshot();
+            Assert.Equal(RunState.Stopped, after.RunState);
+            Assert.False(after.PvWriting);
+            Assert.True(before[i].Elapsed > 0);
+            Assert.Equal(before[i].Pv, after.Pv);
+            Assert.Equal(before[i].Elapsed, after.Elapsed);
+            Assert.Equal(before[i].ActiveForces, after.ActiveForces);
+            Assert.Equal((true, 45d), targets[i].GetForce(ForceKey.Mv));
+            Assert.Equal(histories[i].Length + 1, targets[i].Trend.Count);
+            Assert.Equal(histories[i], Enumerable.Range(0, histories[i].Length).Select(j => targets[i].Trend[j]));
+        }
     }
 
     [Fact]

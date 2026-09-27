@@ -341,10 +341,13 @@ public sealed partial class TargetViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void Resume()
+    private void ResetAlarm()
     {
-        Model.RequestResume();
-        _main.Notify("通信を確認しています。応答があれば異常を解除します");
+        if (!Model.ResetAlarm(_main.Engine.Log)) return;
+        Refresh(false);
+        _main.Notify(HasAlarm
+            ? "異常リセットを要求しました。通信異常は応答確認後に解除します"
+            : "異常をリセットしました");
     }
 
     [RelayCommand]
@@ -352,7 +355,7 @@ public sealed partial class TargetViewModel : ObservableObject
     {
         bool faulted = _main.Dummy.IsFaulted(Model.MvAddress);
         _main.Dummy.SetFault(Model.MvAddress, !faulted);
-        _main.Notify(faulted ? $"デモ: {Model.MvAddress} の応答を戻しました。「通信を再確認して再開」で異常を解除できます" : $"デモ: {Model.MvAddress} を応答なしにしました");
+        _main.Notify(faulted ? $"デモ: {Model.MvAddress} の応答を戻しました。「異常リセット」で異常を解除できます" : $"デモ: {Model.MvAddress} を応答なしにしました");
         Refresh(false);
     }
 }

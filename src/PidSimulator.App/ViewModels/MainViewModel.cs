@@ -38,6 +38,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         Overview = new OverviewViewModel(this);
         _currentPage = Overview;
+        Targets.CollectionChanged += (_, _) => UpdateTargetNavigation();
         _timer.Tick += (_, _) => OnTick();
         _timer.Start();
         UpdateSummary();
@@ -63,7 +64,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private int _runningCount;
     [ObservableProperty] private int _stoppedCount;
     [ObservableProperty] private int _forceCount;
-    [ObservableProperty] private int _alarmCount;
+    [ObservableProperty, NotifyCanExecuteChangedFor(nameof(ResetAllAlarmsCommand))] private int _alarmCount;
     [ObservableProperty] private bool _hasTargets;
     [ObservableProperty] private bool _hasForce;
     [ObservableProperty] private string _forceStripText = "";
@@ -147,7 +148,43 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ---- 画面遷移 ----
 
-    public void Open(TargetViewModel t) => CurrentPage = new DetailViewModel(this, t);
+    public void Open(TargetViewModel t)
+    {
+        if (!Targets.Contains(t)) return;
+        var previous = CurrentPage as DetailViewModel;
+        int selectedTab = previous?.SelectedTabIndex ?? 0;
+        previous?.Detach();
+        CurrentPage = new DetailViewModel(this, t) { SelectedTabIndex = selectedTab };
+    }
+
+    private int CurrentTargetIndex => CurrentPage is DetailViewModel detail ? Targets.IndexOf(detail.Target) : -1;
+    public string TargetPositionText => CurrentTargetIndex is var index && index >= 0
+        ? $"{index + 1} / {Targets.Count}" : "";
+
+    private bool CanPreviousTarget() => CurrentTargetIndex > 0;
+    private bool CanNextTarget() => CurrentTargetIndex >= 0 && CurrentTargetIndex < Targets.Count - 1;
+
+    [RelayCommand(CanExecute = nameof(CanPreviousTarget))]
+    private void PreviousTarget() => MoveTarget(-1);
+
+    [RelayCommand(CanExecute = nameof(CanNextTarget))]
+    private void NextTarget() => MoveTarget(1);
+
+    private void MoveTarget(int offset)
+    {
+        int index = CurrentTargetIndex;
+        if (index >= 0 && index + offset >= 0 && index + offset < Targets.Count)
+            Open(Targets[index + offset]);
+    }
+
+    partial void OnCurrentPageChanged(object value) => UpdateTargetNavigation();
+
+    private void UpdateTargetNavigation()
+    {
+        OnPropertyChanged(nameof(TargetPositionText));
+        PreviousTargetCommand.NotifyCanExecuteChanged();
+        NextTargetCommand.NotifyCanExecuteChanged();
+    }
 
     [RelayCommand]
     private void Back()
@@ -216,6 +253,17 @@ public sealed partial class MainViewModel : ObservableObject
         {
             _startAllCts = null;
         }
+    }
+
+    private bool CanResetAllAlarms() => AlarmCount > 0;
+
+    [RelayCommand(CanExecute = nameof(CanResetAllAlarms))]
+    private void ResetAllAlarms()
+    {
+        int n = Engine.ResetAllAlarms();
+        foreach (var t in Targets) t.Refresh(false);
+        UpdateSummary();
+        Notify(n > 0 ? $"{n} 件の異常リセットを要求しました。通信異常は応答確認後に解除します" : "異常中の対象はありません");
     }
 
     [RelayCommand]
@@ -323,8 +371,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (i >= 0) Targets[i] = newVm;
         if (CurrentPage is DetailViewModel d && d.Target == oldVm)
         {
-            d.Detach();
-            CurrentPage = new DetailViewModel(this, newVm);
+            Open(newVm);
         }
     }
 

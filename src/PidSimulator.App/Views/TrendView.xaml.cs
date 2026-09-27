@@ -37,6 +37,12 @@ public partial class TrendView : UserControl
     {
         InitializeComponent();
         SetupPlot();
+        DataContextChanged += (_, _) =>
+        {
+            _limitsPending = true;
+            _cursorX = null;
+            Render();
+        };
         _timer.Tick += (_, _) => Render();
         Loaded += (_, _) => { _timer.Start(); Render(); };
         Unloaded += (_, _) => _timer.Stop();

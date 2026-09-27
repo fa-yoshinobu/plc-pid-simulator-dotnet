@@ -27,7 +27,12 @@
 
         <!-- ヘッダ -->
         <DockPanel Margin="0,0,0,10">
-            <Button DockPanel.Dock="Left" Style="{StaticResource BtnGhost}" Content="← 一覧へ戻る" Command="{Binding Main.BackCommand}" Margin="0,0,10,0"/>
+            <Button DockPanel.Dock="Left" Style="{StaticResource Btn}" Content="← 一覧へ戻る" Command="{Binding Main.BackCommand}" Margin="0,0,10,0"/>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                <Button Content="◀ 前の対象" Command="{Binding Main.PreviousTargetCommand}"/>
+                <TextBlock Text="{Binding Main.TargetPositionText}" VerticalAlignment="Center" TextAlignment="Center" MinWidth="48" Margin="8,0"/>
+                <Button Content="次の対象 ▶" Command="{Binding Main.NextTargetCommand}"/>
+            </StackPanel>
             <ContentControl DockPanel.Dock="Left" Content="{Binding Target}" ContentTemplate="{StaticResource IsaBubble}" Focusable="False"/>
             <WrapPanel DockPanel.Dock="Right" VerticalAlignment="Center">
                 <ContentControl Content="{Binding Target}" ContentTemplate="{StaticResource StateBadge}" Focusable="False"/>
@@ -44,11 +49,11 @@
         <Border Grid.Row="1" Style="{StaticResource Panel}" Padding="10,8" Margin="0,0,0,10">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                    <Button Style="{StaticResource BtnGhost}" Content="{Binding Target.DemoFaultText}" Command="{Binding Target.ToggleDemoFaultCommand}" Visibility="{Binding Target.IsDummy, Converter={StaticResource BoolToVis}}"
+                    <Button Style="{StaticResource Btn}" Content="{Binding Target.DemoFaultText}" Command="{Binding Target.ToggleDemoFaultCommand}" Visibility="{Binding Target.IsDummy, Converter={StaticResource BoolToVis}}" Margin="0,0,6,0"
                             ToolTip="ダミーPLCのMVアドレスを応答なしにして、通信異常時の動作を確認します"/>
-                    <Button Style="{StaticResource BtnGhost}" Content="登録内容編集" Command="{Binding Target.EditCommand}" IsEnabled="{Binding Target.IsStopped}"
+                    <Button Style="{StaticResource Btn}" Content="登録内容編集" Command="{Binding Target.EditCommand}" IsEnabled="{Binding Target.IsStopped}" Margin="0,0,6,0"
                             ToolTip="停止中に、アドレス・レンジ・モデルなどの登録内容を変更します" ToolTipService.ShowOnDisabled="True"/>
-                    <Button Style="{StaticResource BtnGhost}" Content="複製" Command="{Binding Target.DuplicateCommand}"
+                    <Button Style="{StaticResource Btn}" Content="複製" Command="{Binding Target.DuplicateCommand}"
                             ToolTip="この対象の設定を引き継いで、別の制御対象として登録します"/>
                 </StackPanel>
                 <WrapPanel VerticalAlignment="Center">
@@ -74,7 +79,8 @@
             <Border Background="{StaticResource AlarmBgBrush}" BorderBrush="{StaticResource AlarmBrush}" BorderThickness="1" CornerRadius="4"
                     Padding="12,8" Margin="0,0,0,10" Visibility="{Binding Target.HasAlarm, Converter={StaticResource BoolToVis}}">
                 <DockPanel>
-                    <Button DockPanel.Dock="Right" Style="{StaticResource BtnSmall}" Content="通信を再確認して再開" Command="{Binding Target.ResumeCommand}"/>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource BtnSmall}" Content="異常リセット" Command="{Binding Target.ResetAlarmCommand}"
+                            ToolTip="通信異常は応答確認後に解除します。プレビュー中は終了後に通信を確認します"/>
                     <TextBlock Foreground="{StaticResource AlarmBrush}" VerticalAlignment="Center" TextWrapping="Wrap">
                         <Run Text="異常" FontWeight="Bold"/><Run Text="　"/><Run Text="{Binding Target.Alarm, Mode=OneWay}"/>
                         <Run Text="　／　異常時動作:"/> <Run Text="{Binding Target.OnCommErrorText, Mode=OneWay}"/>
@@ -119,7 +125,7 @@
         </Grid>
 
         <!-- タブ -->
-        <TabControl Grid.Row="4">
+        <TabControl Grid.Row="4" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
             <TabItem Header="トレンド">
                 <views:TrendView/>
             </TabItem>
@@ -188,7 +194,7 @@
                     </Border>
                     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,12,0,0">
                         <Button Style="{StaticResource BtnWarn}" Content="この対象のFORCEをすべて解除" Command="{Binding ReleaseForcesCommand}"/>
-                        <Button Style="{StaticResource BtnGhost}" Content="全対象のFORCE解除" Command="{Binding Main.ReleaseAllCommand}" Margin="8,0,0,0"/>
+                        <Button Style="{StaticResource BtnWarn}" Content="全対象のFORCE解除" Command="{Binding Main.ReleaseAllCommand}" Margin="8,0,0,0"/>
                     </StackPanel>
                     <StackPanel>
                         <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="8,6">

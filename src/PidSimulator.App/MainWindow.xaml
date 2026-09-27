@@ -75,6 +75,8 @@
                         <Button Style="{StaticResource BtnPrimary}" Content="＋ 制御対象を登録" Command="{Binding RegisterCommand}"/>
                         <Rectangle Width="1" Height="24" Fill="{StaticResource LineBrush}" Margin="10,0"/>
                         <Button Style="{StaticResource BtnGo}" Content="▶ 全制御開始" Command="{Binding StartAllCommand}"/>
+                        <Button Content="全異常リセット" Command="{Binding ResetAllAlarmsCommand}" Margin="8,0,0,0"
+                                ToolTip="異常をまとめて解除します。通信異常は応答確認後に解除します"/>
                         <Button Style="{StaticResource BtnWarn}" Content="全FORCE解除" Command="{Binding ReleaseAllCommand}" Margin="8,0,0,0"/>
                     </StackPanel>
                 </DockPanel>

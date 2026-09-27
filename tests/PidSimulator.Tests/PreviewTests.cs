@@ -141,7 +141,7 @@ public class PreviewTests
         target.Cycle(failedPlc, 0.1, 0.1, log);
         Assert.Equal(RunState.Stopped, target.RunState);
         Assert.Equal(CommStatus.Timeout, target.Comm);
-        if (recovery == RecoverMode.Manual) target.RequestResume();
+        if (recovery == RecoverMode.Manual) Assert.True(target.ResetAlarm(log));
 
         using var previewPlc = new RecordingPlc();
         target.SetPreview(true, log);
@@ -156,6 +156,55 @@ public class PreviewTests
         Assert.False(target.PvWriting);
         Assert.Equal(0, previewPlc.Reads);
         Assert.Equal(0, previewPlc.Writes);
+
+        // A requested reset waits for preview to finish and for an actual response.
+        target.SetPreview(false, log);
+        previewPlc.ReadResult = PlcIoStatus.Pending;
+        target.Cycle(previewPlc, 0.1, 5, log);
+        Assert.Equal(CommStatus.Timeout, target.Comm);
+        Assert.NotNull(target.Alarm);
+        previewPlc.ReadResult = PlcIoStatus.Ok;
+        target.Cycle(previewPlc, 0.1, 7, log);
+        Assert.Equal(CommStatus.Ok, target.Comm);
+        Assert.Null(target.Alarm);
+        Assert.Equal(RunState.Stopped, target.RunState);
+        Assert.Equal(2, previewPlc.Reads);
+        Assert.Equal(0, previewPlc.Writes);
+    }
+
+    [Fact]
+    public void Preview_AlarmResetPreservesStateWithoutPlcIo_AndPersistentCauseRaisesItAgain()
+    {
+        var target = CreateFlowTarget(onOff: false);
+        var log = new EventLog();
+        using var plc = new RecordingPlc();
+        target.SetPreview(true, log);
+        target.SetPreviewMv(45);
+        target.Cycle(plc, 0.1, 0.1, log);
+        target.SetForce(ForceKey.Mv, true, double.NaN, log);
+        target.Cycle(plc, 0.1, 0.2, log);
+        Assert.Contains("MV値異常", target.Alarm);
+        var before = target.Snapshot();
+        var history = Enumerable.Range(0, target.Trend.Count).Select(i => target.Trend[i]).ToArray();
+
+        Assert.True(target.ResetAlarm(log));
+        Assert.Null(target.Alarm);
+        Assert.Equal(RunState.Preview, target.RunState);
+        Assert.Equal(before.Pv, target.Pv);
+        Assert.Equal(before.Elapsed, target.Elapsed);
+        Assert.Equal(before.ActiveForces, target.Snapshot().ActiveForces);
+        Assert.Equal((true, double.NaN), target.GetForce(ForceKey.Mv));
+        Assert.Equal(history, Enumerable.Range(0, target.Trend.Count).Select(i => target.Trend[i]));
+
+        target.Cycle(plc, 0.1, 0.3, log);
+        Assert.Contains("MV値異常", target.Alarm);
+        target.SetForce(ForceKey.Mv, false, 0, log);
+        Assert.True(target.ResetAlarm(log));
+        target.Cycle(plc, 0.1, 0.4, log);
+        Assert.Null(target.Alarm);
+        Assert.Equal(RunState.Preview, target.RunState);
+        Assert.Equal(0, plc.Reads);
+        Assert.Equal(0, plc.Writes);
     }
 
     private static ControlTarget CreateFlowTarget(bool onOff)
@@ -172,13 +221,14 @@ public class PreviewTests
     {
         public int Reads { get; private set; }
         public int Writes { get; private set; }
+        public PlcIoStatus ReadResult { get; set; } = PlcIoStatus.Failed;
         public string Endpoint => "preview-test";
         public PlcStatus Status => new(PlcConnectionState.Disconnected, Endpoint, null, 0, 0);
         public PlcIoStatus Read(string address, string dataType, out double raw)
         {
             Reads++;
             raw = 0;
-            return PlcIoStatus.Failed;
+            return ReadResult;
         }
         public PlcIoStatus Write(string address, string dataType, double raw)
         {

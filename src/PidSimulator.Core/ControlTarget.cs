@@ -324,10 +324,20 @@ public sealed class ControlTarget
         }
     }
 
-    /// <summary>手動再開：次の周期で通信を確認し、応答があれば異常を解除する。</summary>
-    public void RequestResume()
+    /// <summary>異常を解除する。通信異常は次の周期の応答確認後に解除し、プレビュー中は確認を保留する。</summary>
+    public bool ResetAlarm(EventLog log)
     {
-        lock (Sync) _resumeRequested = true;
+        lock (Sync)
+        {
+            if (Alarm == null && Comm == CommStatus.Ok) return false;
+            if (Comm != CommStatus.Ok) _resumeRequested = true;
+            else
+            {
+                Alarm = null;
+                log.Add(this, "異常", "異常リセット");
+            }
+            return true;
+        }
     }
 
     public void ClearTrend()

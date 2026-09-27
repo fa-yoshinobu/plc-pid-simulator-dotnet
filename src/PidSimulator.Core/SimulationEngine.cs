@@ -148,6 +148,14 @@ public sealed class SimulationEngine : IDisposable
         return n;
     }
 
+    /// <summary>異常のある対象だけに解除を要求する。通信異常は各対象の応答確認後に解除する。</summary>
+    public int ResetAllAlarms()
+    {
+        int n = Targets.Count(t => t.ResetAlarm(Log));
+        if (n > 0) Log.Add(null, "異常", $"全異常リセットを要求（{n} 件）");
+        return n;
+    }
+
     public int ReleaseAllForces()
     {
         int n = Targets.Sum(t => t.ReleaseForces(Log, "全FORCE解除"));
