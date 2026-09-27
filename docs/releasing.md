@@ -14,13 +14,13 @@ VirusTotalへの通常の送信は公開サンプルの投稿です。検査結�
 2. 未使用のバージョンタグを作成してpushします。
 
    ```powershell
-   git tag v0.1.0
-   git push origin v0.1.0
+   git tag v0.1.1
+   git push origin v0.1.1
    ```
 
 3. **Actions → Release** で進捗を確認します。
 
-[Releaseワークフロー](../.github/workflows/release.yml)は.NET 9でテスト・発行後、`PidSimulator-v0.1.0-win-x64.zip` を公開します。ZIPの内容は **`PidSimulator.exe` と `DEMO.psim` の2ファイルだけ**です。
+[Releaseワークフロー](../.github/workflows/release.yml)は.NET 9でテスト・発行後、`PidSimulator-v0.1.1-win-x64.zip` を公開します。ZIPの内容は **`PidSimulator.exe` と `DEMO.psim` の2ファイルだけ**です。
 
 タグは `vMAJOR.MINOR.PATCH` または `vMAJOR.MINOR.PATCH-rc.1` などの形式を使用します。EXEのバージョンもタグに合わせます。ハイフン付きのタグはGitHubのプレリリースとして公開します。作成済みのタグから公開する場合は **Actions → Release → Run workflow** の `release_tag` にそのタグを指定します。
 
