@@ -31,6 +31,7 @@ public static class ProjectSerializer
                   ?? throw new InvalidDataException("プロジェクトファイルが空です。");
         if (doc.FormatVersion != ProjectDocument.CurrentFormat)
             throw new InvalidDataException($"プロジェクト形式 {doc.FormatVersion} には対応していません。このアプリで使用できる形式は {ProjectDocument.CurrentFormat} です。");
+        if (!doc.Plc.TryValidateModbus(out string plcError)) throw new InvalidDataException(plcError);
         if (doc.Data.TrendMinutes is < TrendBuffer.MinRetentionMinutes or > TrendBuffer.MaxRetentionMinutes)
             throw new InvalidDataException($"トレンド保持時間は {TrendBuffer.MinRetentionMinutes}～{TrendBuffer.MaxRetentionMinutes} 分で指定してください。");
         foreach (var t in doc.Targets)

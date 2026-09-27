@@ -42,6 +42,7 @@ public abstract class CachedPlcClient<TClient> : IConnectablePlcClient where TCl
     protected abstract bool IsPointError(Exception error);
     protected abstract string DescribeError(Exception error);
     protected virtual int WriteBatchSize => ChunkSize;
+    protected virtual bool IsClientUsable(TClient client) => true;
 
     /// <summary>ユーザーの接続操作で通信ループを開始する。</summary>
     public void Connect()
@@ -180,6 +181,13 @@ public abstract class CachedPlcClient<TClient> : IConnectablePlcClient where TCl
         while (!ct.IsCancellationRequested)
         {
             var client = CurrentClient();
+            // 手動テストで通信が中断された場合も、登録点のない待機中から再接続する。
+            if (client != null && !IsClientUsable(client))
+            {
+                Fail("接続が切れました。再接続します。", PlcConnectionState.Faulted);
+                await DropClientAsync().ConfigureAwait(false);
+                client = null;
+            }
             if (client == null)
             {
                 SetState(PlcConnectionState.Connecting);

@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## 未リリース
+
+- Modbus TCPクライアント通信を追加。Unit ID、32ビット値のワード順、接続確認用アドレスを設定可能。
+- Modbusの入力・保持レジスタとON/OFF入力に対応し、ETH-MODBUS-IO8R-Aの設定例を追加。
+
 ## 0.1.1
 
 - KEYENCE PLCのHost Link通信（TCP/UDP）とKV STUDIOシミュレーターに対応。

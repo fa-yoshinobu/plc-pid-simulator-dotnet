@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\src\PidSimulator.Core\PidSimulator.Core.csproj" />
     <ProjectReference Include="..\..\src\PidSimulator.Plc.Slmp\PidSimulator.Plc.Slmp.csproj" />
     <ProjectReference Include="..\..\src\PidSimulator.Plc.HostLink\PidSimulator.Plc.HostLink.csproj" />
+    <ProjectReference Include="..\..\src\PidSimulator.Plc.Modbus\PidSimulator.Plc.Modbus.csproj" />
   </ItemGroup>
 
 </Project>

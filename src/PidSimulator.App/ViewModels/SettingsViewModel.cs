@@ -6,6 +6,7 @@ using PidSimulator.Core;
 using PidSimulator.Core.Project;
 using PidSimulator.Plc.Slmp;
 using PidSimulator.Plc.HostLink;
+using PidSimulator.Plc.Modbus;
 
 namespace PidSimulator.App.ViewModels;
 
@@ -15,6 +16,7 @@ public sealed record ProfileItem(string Name, string DisplayName)
 }
 
 public sealed record SlmpCpuTargetItem(SlmpModuleIoTarget Value, string DisplayName);
+public sealed record ModbusWordOrderItem(ModbusWordOrder Value, string DisplayName);
 
 /// <summary>共通設定（仕様 §24：PLC接続設定・データ保存・アプリ設定）。保存で呼び出し元へ反映する。</summary>
 public sealed partial class SettingsViewModel : ObservableObject
@@ -25,7 +27,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         _mode = plc.Mode;
         var connection = plc.Clone();
         if (connection.Mode == PlcMode.Dummy)
-            connection.Mode = connection.Profile.StartsWith("keyence:", StringComparison.Ordinal) ? PlcMode.HostLink : PlcMode.Slmp;
+            connection.Mode = connection.Profile.Length == 0 ? PlcMode.ModbusTcp
+                : connection.Profile.StartsWith("keyence:", StringComparison.Ordinal) ? PlcMode.HostLink : PlcMode.Slmp;
         _connections[connection.Mode] = connection;
         LoadConnection(connection);
         _csvFolder = data.CsvFolder;
@@ -46,13 +49,21 @@ public sealed partial class SettingsViewModel : ObservableObject
         SlmpModuleIoTarget.ControlSystemCpu, SlmpModuleIoTarget.StandbySystemCpu,
         SlmpModuleIoTarget.SystemACpu, SlmpModuleIoTarget.SystemBCpu,
     }.Select(value => new SlmpCpuTargetItem(value, SlmpPlcClient.ModuleIoDisplayName(value))).ToList();
+    public IReadOnlyList<ModbusWordOrderItem> ModbusWordOrders { get; } =
+    [
+        new(ModbusWordOrder.HighWordFirst, "上位ワード → 下位ワード"),
+        new(ModbusWordOrder.LowWordFirst, "下位ワード → 上位ワード"),
+    ];
     public bool TrendMinutesValid => int.TryParse(TrendMinutesText, out int minutes)
         && minutes is >= TrendBuffer.MinRetentionMinutes and <= TrendBuffer.MaxRetentionMinutes;
     public string TrendMinutesError => TrendMinutesValid ? "" : $"{TrendBuffer.MinRetentionMinutes}～{TrendBuffer.MaxRetentionMinutes} 分の整数で入力してください。";
 
     [ObservableProperty] private int _selectedTab;
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(UseRealPlc), nameof(ShowSlmpCpuTarget))] private PlcMode _mode;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(UseRealPlc), nameof(ShowSlmpCpuTarget), nameof(IsModbus), nameof(HasPlcProfile))] private PlcMode _mode;
     [ObservableProperty] private SlmpModuleIoTarget _slmpModuleIo = SlmpModuleIoTarget.OwnStation;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(ModbusUnitId))] private string _modbusUnitIdText = "1";
+    [ObservableProperty] private ModbusWordOrder _modbusWordOrder = ModbusWordOrder.HighWordFirst;
+    [ObservableProperty] private string _modbusTestAddress = "IR0";
     [ObservableProperty, NotifyPropertyChangedFor(nameof(EndpointEditable))] private bool _useGxSimulator;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(EndpointEditable))] private bool _useKvSimulator;
 
@@ -75,14 +86,27 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public bool UseRealPlc => Mode != PlcMode.Dummy;
     public bool ShowSlmpCpuTarget => Mode == PlcMode.Slmp;
+    public bool IsModbus => Mode == PlcMode.ModbusTcp;
+    public bool HasPlcProfile => !IsModbus;
+    public int ModbusUnitId
+    {
+        get => int.TryParse(ModbusUnitIdText, out int value) ? value : -1;
+        set => ModbusUnitIdText = value.ToString();
+    }
     partial void OnSlmpModuleIoChanged(SlmpModuleIoTarget value) => ClearTestResult();
+    partial void OnModbusUnitIdTextChanged(string value) => ClearTestResult();
+    partial void OnModbusWordOrderChanged(ModbusWordOrder value) => ClearTestResult();
+    partial void OnModbusTestAddressChanged(string value) => ClearTestResult();
 
     /// <summary>GX Simulator 3 は iQ-R / iQ-L のときだけ選べる</summary>
     public bool CanUseGxSimulator => Mode == PlcMode.Slmp && PlcSettings.SupportsGxSimulator(SelectedProfile.Name);
     public bool CanUseKvSimulator => Mode == PlcMode.HostLink && PlcSettings.SupportsKvSimulator(SelectedProfile.Name);
-    public string ConnectionTestHint => Mode == PlcMode.HostLink
-        ? "一時的に接続してPLCの応答を確認します（書込みはしません）"
-        : "一時的に接続してSD0を読みます（書込みはしません）";
+    public string ConnectionTestHint => Mode switch
+    {
+        PlcMode.HostLink => "一時的に接続してPLCの応答を確認します（書込みはしません）",
+        PlcMode.ModbusTcp => "指定した確認アドレスを1点読みます（書込みはしません）",
+        _ => "一時的に接続してSD0を読みます（書込みはしません）",
+    };
 
     public bool EndpointEditable => !(UseGxSimulator && CanUseGxSimulator || UseKvSimulator && CanUseKvSimulator);
 
@@ -91,16 +115,21 @@ public sealed partial class SettingsViewModel : ObservableObject
         if (oldValue != PlcMode.Dummy) _connections[oldValue] = Current(oldValue);
         if (newValue != PlcMode.Dummy)
         {
+            string unitIdText = ModbusUnitIdText;
             var next = _connections.GetValueOrDefault(newValue) ?? new PlcSettings
             {
                 Mode = newValue,
-                Profile = newValue == PlcMode.HostLink ? "keyence:kv-8000" : "melsec:iq-r",
-                Port = newValue == PlcMode.HostLink ? 8501 : 1025,
+                Profile = newValue switch { PlcMode.HostLink => "keyence:kv-8000", PlcMode.ModbusTcp => "", _ => "melsec:iq-r" },
+                Port = newValue switch { PlcMode.HostLink => 8501, PlcMode.ModbusTcp => 502, _ => 1025 },
             };
             next.TimeoutMs = TimeoutMs;
             next.CommCycleMs = CommCycleMs;
             next.SlmpModuleIo = SlmpModuleIo;
+            next.ModbusUnitId = ModbusUnitId;
+            next.ModbusWordOrder = ModbusWordOrder;
+            next.ModbusTestAddress = ModbusTestAddress;
             LoadConnection(next);
+            ModbusUnitIdText = unitIdText;
         }
         OnPropertyChanged(nameof(CanUseGxSimulator));
         OnPropertyChanged(nameof(CanUseKvSimulator));
@@ -114,21 +143,26 @@ public sealed partial class SettingsViewModel : ObservableObject
         _loadingConnection = true;
         try
         {
-            _profiles = (plc.Mode == PlcMode.HostLink ? HostLinkPlcClient.Profiles() : SlmpPlcClient.Profiles())
-                .Select(p => new ProfileItem(p.Name, p.DisplayName)).ToList();
-            var selected = _profiles.FirstOrDefault(p => p.Name == plc.Profile) ?? _profiles.First();
+            _profiles = plc.Mode == PlcMode.ModbusTcp ? []
+                : (plc.Mode == PlcMode.HostLink ? HostLinkPlcClient.Profiles() : SlmpPlcClient.Profiles())
+                    .Select(p => new ProfileItem(p.Name, p.DisplayName)).ToList();
+            var selected = _profiles.FirstOrDefault(p => p.Name == plc.Profile) ?? _profiles.FirstOrDefault() ?? new ProfileItem("", "");
             OnPropertyChanged(nameof(Profiles));
             _selectedProfile = selected;
             UseGxSimulator = plc.IsGxSimulator;
             UseKvSimulator = plc.IsKvSimulator;
             _realEndpoint = (plc.Host, plc.Port, plc.Udp);
-            var endpoint = plc.Effective();
+            // 編集途中のModbus値は保存・接続テスト時に検証し、方式切替だけでは例外にしない。
+            var endpoint = plc.Mode == PlcMode.ModbusTcp ? plc : plc.Effective();
             Host = endpoint.Host;
             Port = endpoint.Port;
-            UseUdp = endpoint.Udp;
+            UseUdp = plc.Mode != PlcMode.ModbusTcp && endpoint.Udp;
             TimeoutMs = plc.TimeoutMs;
             CommCycleMs = plc.CommCycleMs;
             SlmpModuleIo = plc.SlmpModuleIo;
+            ModbusUnitId = plc.ModbusUnitId;
+            ModbusWordOrder = plc.ModbusWordOrder;
+            ModbusTestAddress = plc.ModbusTestAddress;
         }
         finally { _loadingConnection = false; }
         OnPropertyChanged(nameof(SelectedProfile));
@@ -188,11 +222,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string _testResult = "";
     [ObservableProperty] private bool _testOk;
     [ObservableProperty] private bool _testing;
+    [ObservableProperty] private string _validationError = "";
 
     public bool Saved { get; private set; }
     public event Action? CloseRequested;
 
-    private void ClearTestResult() { TestResult = ""; TestOk = false; }
+    private void ClearTestResult() { TestResult = ""; TestOk = false; ValidationError = ""; }
 
     private PlcSettings Current(PlcMode? mode = null) => new()
     {
@@ -200,10 +235,13 @@ public sealed partial class SettingsViewModel : ObservableObject
         Profile = SelectedProfile.Name,
         Host = (UseGxSimulator || UseKvSimulator ? _realEndpoint.Host : Host).Trim(),
         Port = UseGxSimulator || UseKvSimulator ? _realEndpoint.Port : Port,
-        Udp = UseGxSimulator || UseKvSimulator ? _realEndpoint.Udp : UseUdp,
+        Udp = (mode ?? Mode) != PlcMode.ModbusTcp && (UseGxSimulator || UseKvSimulator ? _realEndpoint.Udp : UseUdp),
         TimeoutMs = Math.Max(1, TimeoutMs),
         CommCycleMs = Math.Max(20, CommCycleMs),
         SlmpModuleIo = SlmpModuleIo,
+        ModbusUnitId = ModbusUnitId,
+        ModbusWordOrder = ModbusWordOrder,
+        ModbusTestAddress = ModbusTestAddress.Trim().ToUpperInvariant(),
         UseGxSimulator = UseGxSimulator && (mode ?? Mode) == PlcMode.Slmp && PlcSettings.SupportsGxSimulator(SelectedProfile.Name),
         UseKvSimulator = UseKvSimulator && (mode ?? Mode) == PlcMode.HostLink && PlcSettings.SupportsKvSimulator(SelectedProfile.Name),
     };
@@ -213,14 +251,18 @@ public sealed partial class SettingsViewModel : ObservableObject
     private async Task TestConnection()
     {
         if (!UseRealPlc) return;
+        var settings = Current();
+        if (!ValidateModbus(settings)) return;
         Testing = true;
         TestResult = $"{Host}:{Port} に接続しています…";
         try
         {
-            var settings = Current();
-            var r = settings.Mode == PlcMode.HostLink
-                ? await HostLinkPlcClient.TestConnectionAsync(settings)
-                : await SlmpPlcClient.TestConnectionAsync(settings);
+            var r = settings.Mode switch
+            {
+                PlcMode.HostLink => await HostLinkPlcClient.TestConnectionAsync(settings),
+                PlcMode.ModbusTcp => await ModbusPlcClient.TestConnectionAsync(settings),
+                _ => await SlmpPlcClient.TestConnectionAsync(settings),
+            };
             TestOk = r.Ok;
             TestResult = r.Message;
         }
@@ -241,13 +283,25 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void Save()
     {
         if (!TrendMinutesValid) return;
+        var current = Current();
+        if (!ValidateModbus(current)) return;
         // 押した時点の値を確定する（ウィンドウを閉じる際のバインディング解除で ComboBox の選択が変わることがあるため）
-        _result = Current();
+        _result = current;
         _resultCsv = CsvFolder.Trim();
         _resultConfirm = ConfirmParamChange;
         _resultTrendMinutes = int.Parse(TrendMinutesText);
         Saved = true;
         CloseRequested?.Invoke();
+    }
+
+    private bool ValidateModbus(PlcSettings settings)
+    {
+        if (settings.Mode != PlcMode.ModbusTcp || settings.TryValidateModbus(out var error)) return true;
+        SelectedTab = 0;
+        TestOk = false;
+        TestResult = error;
+        ValidationError = error;
+        return false;
     }
 
     private PlcSettings? _result;
@@ -266,6 +320,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         plc.TimeoutMs = c.TimeoutMs;
         plc.CommCycleMs = c.CommCycleMs;
         plc.SlmpModuleIo = c.SlmpModuleIo;
+        plc.ModbusUnitId = c.ModbusUnitId;
+        plc.ModbusWordOrder = c.ModbusWordOrder;
+        plc.ModbusTestAddress = c.ModbusTestAddress;
         plc.UseGxSimulator = c.UseGxSimulator;
         plc.UseKvSimulator = c.UseKvSimulator;
         data.CsvFolder = _resultCsv ?? CsvFolder.Trim();

@@ -23,6 +23,8 @@ public partial class AboutWindow : Window
             new("CommunityToolkit.Mvvm", VersionOf("CommunityToolkit.Mvvm"), "MIT", "画面とデータの連携"),
             new("PlcComm.Slmp", VersionOf("PlcComm.Slmp"), "MIT", "MELSEC SLMP通信"),
             new("PlcComm.KvHostLink", VersionOf("PlcComm.KvHostLink"), "MIT", "KEYENCE Host Link通信"),
+            new("AMWD.Protocols.Modbus.Tcp", VersionOf("amwd-modbus-tcp"), "MIT", "Modbus TCP通信"),
+            new("AMWD.Protocols.Modbus.Common", VersionOf("amwd-modbus-common"), "MIT", "Modbus通信の共通処理"),
             new("ScottPlot", VersionOf("ScottPlot"), "MIT", "トレンドグラフ"),
             new("ScottPlot.WPF", VersionOf("ScottPlot.WPF"), "MIT", "WPFへのグラフ表示"),
             new("SkiaSharp", VersionOf("SkiaSharp"), "MIT", "グラフの描画基盤"),
@@ -32,6 +34,10 @@ public partial class AboutWindow : Window
         using var stream = app.GetManifestResourceStream("PidSimulator.App.LICENSE");
         using var reader = stream == null ? null : new StreamReader(stream);
         LicenseText = reader?.ReadToEnd() ?? "ライセンス本文を読み込めませんでした。";
+        using var amwdStream = app.GetManifestResourceStream("PidSimulator.App.AMWD_LICENSE");
+        using var amwdReader = amwdStream == null ? null : new StreamReader(amwdStream);
+        LicenseText += "\n\nAMWD.Protocols.Modbus.Tcp / AMWD.Protocols.Modbus.Common\n\n"
+            + (amwdReader?.ReadToEnd() ?? "ライセンス本文を読み込めませんでした。");
         DataContext = this;
     }
 

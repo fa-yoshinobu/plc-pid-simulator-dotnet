@@ -12,6 +12,7 @@ using PidSimulator.Core.Plc;
 using PidSimulator.Core.Project;
 using PidSimulator.Plc.Slmp;
 using PidSimulator.Plc.HostLink;
+using PidSimulator.Plc.Modbus;
 
 namespace PidSimulator.App.ViewModels;
 
@@ -287,7 +288,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void Register()
     {
         var cfg = TargetConfig.Default(ModelKind.Level);
-        (cfg.MvAddress, cfg.PvAddress, cfg.SpAddress) = NextAddresses();
+        (cfg.MvAddress, cfg.PvAddress, cfg.SpAddress) = NextAddresses(cfg.DataType, cfg.MvOnOff);
         var vm = new RegistrationViewModel(RegistrationMode.New, cfg, Engine.Targets, Engine.Plc, plcSettings: PlcSettings);
         if (!ShowRegistration(vm)) return;
         var t = AddTarget(vm.Result!, null);
@@ -328,7 +329,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var cfg = t.Model.ToConfig();
         cfg.Name = $"{t.Name} のコピー";
-        (cfg.MvAddress, cfg.PvAddress, cfg.SpAddress) = NextAddresses();
+        (cfg.MvAddress, cfg.PvAddress, cfg.SpAddress) = NextAddresses(cfg.DataType, cfg.MvOnOff);
         var vm = new RegistrationViewModel(RegistrationMode.Duplicate, cfg, Engine.Targets, Engine.Plc, t.Name, PlcSettings);
         if (!ShowRegistration(vm)) return;
         var added = AddTarget(vm.Result!, $"{t.Name} から複製して登録");
@@ -394,9 +395,15 @@ public sealed partial class MainViewModel : ObservableObject
         foreach (var (t, sp) in sps) Dummy.AddLoop(DummyPidLoop.For(t, sp));
     }
 
-    /// <summary>選択中の通信方式に合うワードデバイスで、既存アドレスの次の10番台を提案する。</summary>
-    private (string mv, string pv, string sp) NextAddresses()
+    /// <summary>選択中の通信方式に合うワードデバイスで、既存対象と重ならないアドレスを提案する。</summary>
+    private (string mv, string pv, string sp) NextAddresses(string dataType = "INT16", bool mvOnOff = false)
     {
+        if (PlcSettings.Mode == PlcMode.ModbusTcp)
+        {
+            int input = NextModbusRegister("IR"), holding = NextModbusRegister("HR");
+            int mvWords = !mvOnOff && dataType is "INT32" or "FLOAT32" ? 2 : 1;
+            return ($"IR{input}{(mvOnOff ? ".0" : "")}", $"HR{holding}", $"IR{input + mvWords}");
+        }
         string prefix = PlcSettings.Mode == PlcMode.HostLink && !PlcSettings.Profile.EndsWith("-xym", StringComparison.Ordinal) ? "DM" : "D";
         int max = Engine.Targets
             .SelectMany(t => new[] { t.MvAddress, t.PvAddress, t.SpAddress })
@@ -407,6 +414,22 @@ public sealed partial class MainViewModel : ObservableObject
             .Max();
         int b = (max / 10 + 1) * 10;
         return ($"{prefix}{b}", $"{prefix}{b + 2}", $"{prefix}{b + 4}"); // FLOAT32 / INT32 は各2ワード使う
+    }
+
+    private int NextModbusRegister(string device)
+    {
+        int next = 0;
+        foreach (var target in Engine.Targets)
+        foreach (var (address, type) in new[]
+        {
+            (target.MvAddress, target.MvDataType), (target.PvAddress, target.DataType),
+            (target.UseSp ? target.SpAddress : "", target.DataType),
+        })
+        {
+            if (!ModbusAddressRules.TryParse(address, out var parsed) || parsed.Device != device) continue;
+            next = Math.Max(next, parsed.Number + (type is "INT32" or "FLOAT32" ? 2 : 1));
+        }
+        return next;
     }
 
     // ---- プロジェクト（§13） ----
@@ -609,6 +632,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         PlcMode.Slmp => new SlmpPlcClient(settings),
         PlcMode.HostLink => new HostLinkPlcClient(settings),
+        PlcMode.ModbusTcp => new ModbusPlcClient(settings),
         _ => Dummy,
     };
 

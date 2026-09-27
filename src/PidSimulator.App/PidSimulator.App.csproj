@@ -4,6 +4,7 @@
     <ProjectReference Include="..\PidSimulator.Core\PidSimulator.Core.csproj" />
     <ProjectReference Include="..\PidSimulator.Plc.Slmp\PidSimulator.Plc.Slmp.csproj" />
     <ProjectReference Include="..\PidSimulator.Plc.HostLink\PidSimulator.Plc.HostLink.csproj" />
+    <ProjectReference Include="..\PidSimulator.Plc.Modbus\PidSimulator.Plc.Modbus.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -30,6 +31,7 @@
     <Resource Include="Assets\AppIcon.ico" />
     <Resource Include="Assets\AppIcon.png" />
     <EmbeddedResource Include="..\..\LICENSE" LogicalName="PidSimulator.App.LICENSE" />
+    <EmbeddedResource Include="Assets\Licenses\AMWD.Protocols.Modbus.txt" LogicalName="PidSimulator.App.AMWD_LICENSE" />
     <Content Include="..\..\DEMO.psim" Link="DEMO.psim" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
   </ItemGroup>
 

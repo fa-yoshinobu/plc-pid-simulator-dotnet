@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PidSimulator.Core\PidSimulator.Core.csproj" />
+    <PackageReference Include="AMWD.Protocols.Modbus.Tcp" Version="0.6.0" />
+  </ItemGroup>
+</Project>

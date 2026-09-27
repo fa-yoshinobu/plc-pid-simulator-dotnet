@@ -71,6 +71,7 @@ dotnet test tests/PidSimulator.Tests -c Release
 | `src/PidSimulator.Core` | プロセスモデル、演算、ダミーPLC、プロジェクト保存、登録チェック |
 | `src/PidSimulator.Plc.Slmp` | MELSEC SLMP通信 |
 | `src/PidSimulator.Plc.HostLink` | KEYENCE Host Link通信 |
+| `src/PidSimulator.Plc.Modbus` | Modbus TCPクライアント通信 |
 | `src/PidSimulator.App` | WPF画面とViewModel |
 | `tests/PidSimulator.Tests` | モデル・通信・保存などの自動テストとテスト用PLCサーバ |
 | `tools/Artwork` | アプリアイコンとソーシャルプレビュー画像の生成 |
@@ -84,10 +85,11 @@ dotnet test tests/PidSimulator.Tests -c Release
 | --- | --- | --- |
 | [PlcComm.Slmp](https://github.com/fa-yoshinobu/plc-comm-slmp-dotnet) | MELSEC SLMP通信 | MIT |
 | [PlcComm.KvHostLink](https://github.com/fa-yoshinobu/plc-comm-hostlink-dotnet) | KEYENCE Host Link通信 | MIT |
+| [AMWD.Protocols.Modbus.Tcp](https://github.com/AM-WD/AMWD.Protocols.Modbus) | Modbus TCP通信 | MIT |
 | [ScottPlot.WPF](https://scottplot.net/) | トレンドグラフ | MIT |
 | [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) | MVVM | MIT |
 
-使用バージョンは [アプリ](../src/PidSimulator.App/PidSimulator.App.csproj)・[SLMP](../src/PidSimulator.Plc.Slmp/PidSimulator.Plc.Slmp.csproj)・[Host Link](../src/PidSimulator.Plc.HostLink/PidSimulator.Plc.HostLink.csproj)の各プロジェクトファイルに記載しています。本アプリのライセンスは [MIT License](../LICENSE) です。
+使用バージョンは [アプリ](../src/PidSimulator.App/PidSimulator.App.csproj)・[SLMP](../src/PidSimulator.Plc.Slmp/PidSimulator.Plc.Slmp.csproj)・[Host Link](../src/PidSimulator.Plc.HostLink/PidSimulator.Plc.HostLink.csproj)・[Modbus TCP](../src/PidSimulator.Plc.Modbus/PidSimulator.Plc.Modbus.csproj)の各プロジェクトファイルに記載しています。本アプリのライセンスは [MIT License](../LICENSE) です。
 
 ## アイコン・ソーシャルプレビュー画像
 

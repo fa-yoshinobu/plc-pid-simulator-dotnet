@@ -38,6 +38,7 @@ PLC
 | モデル演算・制御対象管理・トレンド・ログ・設定保存 | `PidSimulator.Core` | 画面と通信方式に依存しない |
 | PLC通信（SLMP） | `PidSimulator.Plc.Slmp` | PlcComm.Slmp を使用 |
 | PLC通信（Host Link） | `PidSimulator.Plc.HostLink` | PlcComm.KvHostLink を使用 |
+| PLC通信（Modbus TCP） | `PidSimulator.Plc.Modbus` | AMWD.Protocols.Modbus.Tcp を使用 |
 | GUI | `PidSimulator.App` | WPF（MVVM） |
 
 PLC通信は `IPlcClient` で抽象化する。
@@ -45,6 +46,7 @@ PLC通信は `IPlcClient` で抽象化する。
 - `DummyPlc`：PLCなしで動作確認するためのダミーPLC。レジスタを保持し、PLC側のPI制御またはリレーON/OFF制御を模擬する。
 - `SlmpPlcClient`：MELSEC SLMP（バイナリ 3E/4E、TCP/UDP）。
 - `HostLinkPlcClient`：KEYENCE KV Host Link（TCP/UDP）。
+- `ModbusPlcClient`：Modbus TCPのClient（マスター）。PLC・リモートI/OのServer（スレーブ）へ接続する。
 
 ## 4. メイン画面
 
@@ -249,7 +251,7 @@ PIDの外乱応答確認用。外乱量をスライダまたは数値で設定�
 - レンジ / スケーリング
 - モデル種類・パラメータ
 - 初期状態、停止時・通信異常時・復旧時の動作
-- PLC接続設定（通信方式、機種、接続先、MELSECの接続先CPU、GX Simulator 3・KV STUDIOシミュレーターの使用）
+- PLC接続設定（通信方式、機種、接続先、MELSECの接続先CPU、GX Simulator 3・KV STUDIOシミュレーターの使用、ModbusのUnit ID・ワード順・接続確認用アドレス）
 - データ保存設定（CSV保存先、トレンド保持時間）
 - 運転中のパラメータ変更を確認する設定
 
@@ -268,10 +270,13 @@ PIDの外乱応答確認用。外乱量をスライダまたは数値で設定�
 | ダミーPLC | PLCなしで動作確認。PLC側のPI制御またはリレーON/OFF制御を模擬する |
 | MELSEC PLC（SLMP） | MELSEC SLMP バイナリ 3E/4E、TCP / UDP。PLC機種は PlcComm.Slmp のプロファイルから選ぶ |
 | KEYENCE PLC（Host Link） | KEYENCE KV Host Link、TCP / UDP。PLC機種は PlcComm.KvHostLink のプロファイルから選ぶ。標準ポート8501 |
+| Modbus TCP | AMWD.Protocols.Modbus.Tcpを使うClient。TCPのみ、標準ポート502。Unit ID・32ビット値のワード順・接続確認用アドレスを設定する |
 | GX Simulator 3 | SLMP で `127.0.0.1:5511`（TCP）に接続。iQ-R / iQ-L のみ。CPUパラメータ「RUN中の書込み許可/禁止設定：一括で許可する(SLMP)」が必要 |
 | KV STUDIOシミュレーター | Host Linkで `127.0.0.1:8501`（TCP）に接続。KV-8000・KV-X500系列と各XYM表記に対応 |
 
 MELSECの接続先CPUは自局・CPU 1～4・制御系CPU・待機系CPU・A系CPU・B系CPUから選ぶ。初期値は自局。接続テストと通常の読込・書込で同じ選択を使い、ステータスバーの接続先にも表示する。GX Simulator 3でも接続先CPUを選択できる。
+
+Modbusのアドレスは `C0`（Coil）・`DI0`（Discrete Input）・`IR0`（Input Register）・`HR0`（Holding Register）のように領域と0起点の10進番号で指定する。各領域の番号は0～65535。数値MV・SPはIR/HR、ON/OFFのMVはC/DIまたはIR/HRのワード内ビット、数値PVはHRを使用する。32ビット値は連続する2レジスタを使い、上位ワードから／下位ワードからを選べる。Unit IDの設定範囲は0～255で、機器の指定値に合わせる。
 
 設定の保存・プロジェクト読込だけでは接続せず、ツールバーの「接続」または「全制御開始」で接続する。接続方式を切り替えるときは、制御中・プレビュー中の対象をすべて停止してから切り替える。
 
@@ -280,6 +285,7 @@ MELSECの接続先CPUは自局・CPU 1～4・制御系CPU・待機系CPU・A系C
 - モデル演算は全対象100 ms周期。通信周期は共通のPLC接続設定で指定する。
 - 演算スレッドは PLC 通信を待たず、通信ループが保持している最新値を使う。
 - 通信ループは通信周期ごとにMV・SPを読み込み、PVを書き込む。SLMPの数値はランダム読出し・書込みでまとめ、ON/OFFのMVは個別に読む。Host Linkはライブラリの型付き読込・書込みを使う。PVは値が変わったとき、および1秒ごとに書き込む。
+- Modbusは領域に応じてFC01/02/03/04で読み、16ビットPVはFC06、32ビットPVはFC16で書く。各通信にタイムアウトを設定し、途中で中断した接続は破棄・再接続する。
 - 読込結果は「正常」「初回取得待ち」「失敗」の3種類とし、初回取得待ちは異常にしない。応答が「タイムアウト＋通信周期×3」より古くなったら失敗とする。
 
 ### 14.3 状態
@@ -298,7 +304,7 @@ MELSECの接続先CPUは自局・CPU 1～4・制御系CPU・待機系CPU・A系C
 
 通信復旧時の異常解除は自動または手動（「異常リセット」）を選べる。「シミュレーション停止」で停止した対象は、異常解除後に制御開始の操作が必要。プレビュー中に通信異常のリセットを要求した場合は、プレビュー終了後に通信を確認する。
 
-PLCがエラー応答を返したアドレスは、その点だけを異常とし、他の対象の通信は続ける。SLMPの終了コードやHost Linkのエラーコードは、理由を画面に表示する。
+PLCがエラー応答を返したアドレスは、その点だけを異常とし、他の対象の通信は続ける。SLMPの終了コード、Host Linkのエラーコード、Modbusの例外応答は、理由を画面に表示する。
 
 ## 15. 異常値・レンジチェック
 
@@ -350,7 +356,7 @@ MVは登録レンジ内に制限する。PLCから読み込んだSPは、工業�
 - 読込テスト：MV・SP を1点ずつ直接読み、RAW値・工業値・応答時間を表示する（PLCへは書き込まない）
 - PV書込テスト：書込先アドレスを示した確認チェックを入れたときだけ実行でき、実行後もチェックを保持して繰り返しテストできる
 
-共通設定の接続テストは、一時的に接続してPLCの応答を確認する。SLMPではSD0（自己診断エラーコード）、Host Linkでは運転モード（`?M`）を読む。PLCへ値は書き込まない。
+共通設定の接続テストは、一時的に接続してPLCの応答を確認する。SLMPではSD0（自己診断エラーコード）、Host Linkでは運転モード（`?M`）を読む。Modbusでは設定した接続確認用アドレスを1点読み、ビットはBIT、レジスタはUINT16として扱う。PLCへ値は書き込まない。
 
 ## 20. モデル単体プレビュー
 
@@ -405,6 +411,8 @@ PLCと接続せず、GUIから仮MVを入力してモデル応答を確認する
 
 ## 24. 動作確認
 
-自動テストでモデルの物理収支・応答・条件計算、通信異常、FORCE、入力検証、保存・読込を確認する。通信はテスト用PLCサーバでSLMP（TCP）・Host Link（TCP/UDP）の読込・書込、型変換、再接続、点単位の異常分離とモデル運転を確認する。
+自動テストでモデルの物理収支・応答・条件計算、通信異常、FORCE、入力検証、保存・読込を確認する。通信はテスト用PLCサーバでSLMP（TCP）・Host Link（TCP/UDP）・Modbus TCPの読込・書込、型変換、再接続、点単位の異常分離とモデル運転を確認する。
 
 GX Simulator 3（iQ-R）と実機PLC（SLMP）では接続・読込・書込と運転を確認済み。KV STUDIOシミュレーターおよびKEYENCE実機PLCとのHost Link通信も確認済み。
+
+Modbus TCPの検証にはテスト用Serverを使用する。ETH-MODBUS-IO8R-Aの実機通信は未確認。

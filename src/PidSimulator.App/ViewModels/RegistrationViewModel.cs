@@ -9,6 +9,7 @@ using PidSimulator.Core.Plc;
 using PidSimulator.Core.Project;
 using PidSimulator.Plc.HostLink;
 using PidSimulator.Plc.Slmp;
+using PidSimulator.Plc.Modbus;
 
 namespace PidSimulator.App.ViewModels;
 
@@ -86,6 +87,7 @@ public sealed partial class RegistrationViewModel : ObservableObject
         {
             HostLinkPlcClient hostLink => hostLink.Settings.Clone(),
             SlmpPlcClient slmp => slmp.Settings.Clone(),
+            ModbusPlcClient modbus => modbus.Settings.Clone(),
             _ => new PlcSettings(),
         };
         EditingName = editingName;
@@ -159,13 +161,18 @@ public sealed partial class RegistrationViewModel : ObservableObject
 
     // ---- 4. PLC通信 ----
     private bool IsHostLink => _plcSettings.Mode == PlcMode.HostLink;
+    private bool IsModbus => _plcSettings.Mode == PlcMode.ModbusTcp;
     private bool IsXym => IsHostLink && _plcSettings.Profile.EndsWith("-xym", StringComparison.Ordinal);
     public string PlcConnectionSummary => _plc.Endpoint;
-    public string WordAddressHint => IsHostLink
+    public string WordAddressHint => IsModbus
+        ? "0起点の10進アドレスです。30001 → IR0、40001 → HR0。PVはHRへ書き込みます。INT32・FLOAT32は連続2ワードを使用し、ワード順は通信設定で指定します。"
+        : IsHostLink
         ? IsXym ? "アドレス例：D1000（XYM表記）。INT32・FLOAT32は連続する2ワードを使用します。"
             : "アドレス例：DM1000。INT32・FLOAT32は連続する2ワードを使用します。"
         : "アドレス例：D1000。INT32・FLOAT32は連続する2ワードを使用します。";
-    public string RelayAddressHint => (IsHostLink
+    public string RelayAddressHint => (IsModbus
+        ? "ON/OFFはC0（コイル）・DI0（入力）、またはHR0.0・IR0.0形式を読み込みます。アドレスは0起点です。"
+        : IsHostLink
         ? IsXym ? "ON/OFFはM・Yなどのビット、またはD1.0形式を読み込みます。"
             : "ON/OFFはMR・Rなどのビット、またはDM1.0形式を読み込みます。"
         : "ON/OFFはM・Yなどのビット、またはD1.0形式を読み込みます。")
@@ -453,9 +460,10 @@ public sealed partial class RegistrationViewModel : ObservableObject
     private async Task<TestRow> ReadRowAsync(string signal, string address, RangeDef range)
     {
         string addr = address.Trim().ToUpperInvariant();
-        if (!RegistrationValidator.IsAddress(addr, _plcSettings)) return new TestRow(signal, addr, DataType, "—", "—", "選択中のPLC機種では使えないアドレスです", false);
         bool relay = signal == "MV" && MvOnOff;
         string type = relay ? "BIT" : DataType;
+        if (!ValidTestAddress(addr, type, forWrite: false))
+            return new TestRow(signal, addr, type, "—", "—", "選択中の通信方式・データ型では使えないアドレスです", false);
         var r = await _plc.TestReadAsync(addr, type);
         if (!r.Ok) return new TestRow(signal, addr, type, "—", "—", r.Message, false);
         if (relay) return new TestRow(signal, addr, type, r.Raw.ToString(), r.Raw == 0 ? "OFF（0%）" : "ON（100%）", "OK", true);
@@ -470,7 +478,7 @@ public sealed partial class RegistrationViewModel : ObservableObject
         if (!PvWriteAck) return;
         var range = PvRange.ToRange();
         string addr = PvAddress.Trim().ToUpperInvariant();
-        if (!range.IsValid || !RegistrationValidator.IsAddress(addr, _plcSettings) || !double.IsFinite(PvTestValue))
+        if (!range.IsValid || !ValidTestAddress(addr, DataType, forWrite: true) || !double.IsFinite(PvTestValue))
         {
             PvTestResult = "アドレスまたはレンジを確認してください";
             return;
@@ -482,4 +490,8 @@ public sealed partial class RegistrationViewModel : ObservableObject
             ? $"{addr} へ RAW {r.Raw:G9}（{PvTestValue:G} {range.Unit}）を書き込みました"
             : $"{addr} への書込みに失敗しました：{r.Message}";
     }
+
+    private bool ValidTestAddress(string address, string dataType, bool forWrite) => IsModbus
+        ? ModbusAddressRules.TryResolve(address, dataType, forWrite, out _)
+        : RegistrationValidator.IsAddress(address, _plcSettings);
 }

@@ -9,6 +9,13 @@ public static class PlcBitAddress
     public static bool TryWordBit(string address, out string word, out int bit, PlcSettings? plc = null)
     {
         word = ""; bit = 0;
+        if (plc?.Mode == PlcMode.ModbusTcp)
+        {
+            if (!ModbusAddressRules.TryResolve(address, "BIT", false, out var parsed) || parsed.BitIndex is not int index) return false;
+            word = parsed.BaseAddress;
+            bit = index;
+            return true;
+        }
         if (plc?.Mode == PlcMode.HostLink)
         {
             if (!HostLinkAddressRules.TryResolve(address, "BIT", plc.Profile, out var parsed) || parsed.BitIndex is not int index) return false;
@@ -16,7 +23,7 @@ public static class PlcBitAddress
             bit = index;
             return true;
         }
-        string families = plc?.Mode == PlcMode.Slmp ? "D|W|R|ZR|SD|SW" : "DM|EM|FM|ZF|TM|CM|VM|D|E|F|W|R|ZR|SD|SW";
+        string families = plc?.Mode == PlcMode.Slmp ? "D|W|R|ZR|SD|SW" : "HR|IR|DM|EM|FM|ZF|TM|CM|VM|D|E|F|W|R|ZR|SD|SW";
         var m = Regex.Match((address ?? "").Trim().ToUpperInvariant(), $@"^((?:{families})[0-9][0-9A-F]*)\.([0-9]+|[A-F])$");
         if (!m.Success) return false;
         string s = m.Groups[2].Value;
@@ -28,9 +35,12 @@ public static class PlcBitAddress
     }
     public static bool IsValid(string address, PlcSettings? plc = null)
     {
+        if (plc?.Mode == PlcMode.ModbusTcp)
+            return ModbusAddressRules.TryResolve(address, "BIT", false, out _);
         if (plc?.Mode == PlcMode.HostLink)
             return HostLinkAddressRules.TryResolve(address, "BIT", plc.Profile, out _);
         if (TryWordBit(address, out _, out _, plc)) return true;
+        if (plc?.Mode != PlcMode.Slmp && ModbusAddressRules.TryResolve(address, "BIT", false, out _)) return true;
         string text = (address ?? "").Trim().ToUpperInvariant();
         if (plc?.Mode != PlcMode.Slmp && Regex.IsMatch(text, @"^(?:R|MR|LR|CR|VB)[0-9][0-9A-F]*$")) return true;
         return Regex.IsMatch(text, @"^(?:M|Y|X|B|L|F|V|S|SM|SB|TS|TC|CS|CC)[0-9][0-9A-F]*$");
