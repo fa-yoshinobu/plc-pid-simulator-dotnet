@@ -86,7 +86,7 @@ public sealed class SlmpPlcClient : CachedPlcClient<SlmpClient>
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             string hint = settings.IsGxSimulator
-                ? "\nGX Works3 でシミュレーションを開始しているか、パラメータ「オンライン変更の有効/無効：全て有効（SLMP）」が設定されているかを確認してください。"
+                ? "\nGX Works3 でシミュレーションを開始しているか、パラメータ「RUN中の書込み許可/禁止設定：一括で許可する(SLMP)」が設定されているかを確認してください。"
                 : "";
             return new PlcTestResult(false, 0, $"接続できません：{Describe(ex)}{hint}", sw.Elapsed.TotalMilliseconds);
         }
@@ -114,7 +114,7 @@ public sealed class SlmpPlcClient : CachedPlcClient<SlmpClient>
     /// <summary>よく出る終了コードに対処方法を添える</summary>
     private static string EndCodeHint(ushort code, string? name) => code switch
     {
-        0x0055 => "（RUN中の書込みが許可されていません。CPUパラメータ「オンライン変更の有効/無効」を「全て有効（SLMP）」にしてPLCへ書き込んでください）",
+        0x0055 => "（RUN中の書込みが許可されていません。CPUパラメータ「RUN中の書込み許可/禁止設定」を「一括で許可する(SLMP)」にしてPLCへ書き込んでください）",
         0xC056 => "（デバイス番号がPLCのデバイス範囲外です）",
         0xC059 => "（このPLCでは使えないコマンドです。PLC機種の設定を確認してください）",
         0xC05C => "（要求内容が不正です。アドレスとデータ型を確認してください）",

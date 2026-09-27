@@ -87,6 +87,11 @@ DEMOには、Hz指令の慣性モーターと、mm表示・FLOAT32の給水ポ�
 
 ## 実機PLCの設定
 
+PLC側のパラメータ設定は、以下のサイトを参考にしてください。通信ライブラリの設定ガイドと、本アプリと同じ通信ライブラリを使用するPLC Consoleの設定例です。
+
+- [PLC Communication Libraries — PLC設定ガイド](https://plc-comm-docs-site.fa-labo.com/plc-setup/)
+- [FA Labo PLC Console — 接続設定例](https://plc-console.fa-labo.com/plc/plc-side-settings.html)
+
 「設定 → PLC接続設定」で「MELSEC PLC（SLMP）」または「KEYENCE PLC（Host Link）」を選び、接続するCPUの機種、IPアドレス、ポート、TCP/UDP、タイムアウト、通信周期を入力します。PLC側も選択した通信方式を有効にしてください。
 
 MELSECでは「接続先CPU」で、自局・CPU 1～4・制御系CPU・待機系CPU・A系CPU・B系CPUを選べます。初期値は自局です。選択したCPUを接続テスト、MV・SPの読込み、PVの書込みに使い、プロジェクトにも保存します。
@@ -101,7 +106,7 @@ MELSECでは「接続先CPU」で、自局・CPU 1～4・制御系CPU・待機�
 
 ## GX Simulator 3の設定
 
-GX Works3のiQ-R / iQ-Lプロジェクトで、CPUパラメータ「オンライン変更の有効/無効」を**全て有効（SLMP）**に設定します。英語版の表示は `Enable/Disable Online Change: Enable All (SLMP)` です。
+GX Works3のiQ-R / iQ-Lプロジェクトで、CPUパラメータ「RUN中の書込み許可/禁止設定」を**一括で許可する(SLMP)**に設定します。英語版の表示は `Enable/Disable Online Change: Enable All (SLMP)` です。
 
 1. パラメータを設定し、GX Works3のシミュレーションを開始します。
 2. このアプリの「設定 → PLC接続設定」で「MELSEC PLC（SLMP）」を選びます。

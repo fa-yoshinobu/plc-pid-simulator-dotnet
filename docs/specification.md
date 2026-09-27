@@ -268,7 +268,7 @@ PIDの外乱応答確認用。外乱量をスライダまたは数値で設定�
 | ダミーPLC | PLCなしで動作確認。PLC側のPI制御またはリレーON/OFF制御を模擬する |
 | MELSEC PLC（SLMP） | MELSEC SLMP バイナリ 3E/4E、TCP / UDP。PLC機種は PlcComm.Slmp のプロファイルから選ぶ |
 | KEYENCE PLC（Host Link） | KEYENCE KV Host Link、TCP / UDP。PLC機種は PlcComm.KvHostLink のプロファイルから選ぶ。標準ポート8501 |
-| GX Simulator 3 | SLMP で `127.0.0.1:5511`（TCP）に接続。iQ-R / iQ-L のみ。CPUパラメータ「オンライン変更の有効/無効：全て有効（SLMP）」が必要 |
+| GX Simulator 3 | SLMP で `127.0.0.1:5511`（TCP）に接続。iQ-R / iQ-L のみ。CPUパラメータ「RUN中の書込み許可/禁止設定：一括で許可する(SLMP)」が必要 |
 | KV STUDIOシミュレーター | Host Linkで `127.0.0.1:8501`（TCP）に接続。KV-8000・KV-X500系列と各XYM表記に対応 |
 
 MELSECの接続先CPUは自局・CPU 1～4・制御系CPU・待機系CPU・A系CPU・B系CPUから選ぶ。初期値は自局。接続テストと通常の読込・書込で同じ選択を使い、ステータスバーの接続先にも表示する。GX Simulator 3でも接続先CPUを選択できる。

@@ -60,7 +60,7 @@
                         <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,12" Visibility="{Binding CanUseGxSimulator, Converter={StaticResource BoolToVis}}">
                             <CheckBox IsChecked="{Binding UseGxSimulator}" Content="GX Simulator 3 に接続" FontWeight="SemiBold"/>
                             <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="22,4,0,0"
-                                       Text="127.0.0.1:5511 / TCP に固定します。GX Works3 でシミュレーションを開始し、CPUパラメータ「オンライン変更の有効/無効」を「全て有効（SLMP）」にしてください。"/>
+                                       Text="127.0.0.1:5511 / TCP に固定します。GX Works3 でシミュレーションを開始し、CPUパラメータ「RUN中の書込み許可/禁止設定」を「一括で許可する(SLMP)」にしてください。"/>
                         </StackPanel>
                         <TextBlock Grid.Row="2" Text="IPアドレス" Style="{StaticResource L}"/>
                         <StackPanel Grid.Row="2" Grid.Column="1" Style="{StaticResource Row}" IsEnabled="{Binding EndpointEditable}"><TextBox Width="180" Text="{Binding Host}"/></StackPanel>
