@@ -11,6 +11,7 @@ using PidSimulator.Core;
 using PidSimulator.Core.Plc;
 using PidSimulator.Core.Project;
 using PidSimulator.Plc.Slmp;
+using PidSimulator.Plc.HostLink;
 
 namespace PidSimulator.App.ViewModels;
 
@@ -48,8 +49,8 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>PLCなしで動かすときのダミーPLC（PLC側PIDの模擬を含む）。常に保持し、通信方式で切り替える。</summary>
     public DummyPlc Dummy { get; }
     public bool IsDummy => Engine.Plc is DummyPlc;
-    public bool CanConnect => Engine.Plc is SlmpPlcClient && Engine.Plc.Status.State == PlcConnectionState.Disconnected;
-    public bool CanDisconnect => Engine.Plc is SlmpPlcClient && Engine.Plc.Status.State != PlcConnectionState.Disconnected;
+    public bool CanConnect => Engine.Plc is IConnectablePlcClient && Engine.Plc.Status.State == PlcConnectionState.Disconnected;
+    public bool CanDisconnect => Engine.Plc is IConnectablePlcClient && Engine.Plc.Status.State != PlcConnectionState.Disconnected;
     public PlcSettings PlcSettings { get; private set; } = new();
     public DataSettings DataSettings { get; private set; } = new();
     public ObservableCollection<TargetViewModel> Targets { get; } = [];
@@ -210,11 +211,13 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var candidates = Targets.Where(t => t.IsStopped).ToList();
         if (candidates.Count == 0) { Notify("停止中の制御対象はありません"); return; }
-        var ok = candidates.Where(t => !t.HasAlarm).ToList();
+        var blockers = candidates.ToDictionary(t => t, t => TargetBlockers(t.Model));
+        var ok = candidates.Where(t => !t.HasAlarm && blockers[t].Count == 0).ToList();
         var ng = candidates.Where(t => t.HasAlarm).ToList();
 
         var items = ok.Select(t => new CheckResult(CheckLevel.Ok, $"{t.Name}　PV → {t.PvAddress}"))
-            .Concat(ng.Select(t => new CheckResult(CheckLevel.Warn, $"開始しない（異常中）: {t.Name}")));
+            .Concat(ng.Select(t => new CheckResult(CheckLevel.Warn, $"開始しない（異常中）: {t.Name}")))
+            .Concat(candidates.SelectMany(t => blockers[t].Select(c => new CheckResult(CheckLevel.Block, $"{t.Name}: {c.Message}"))));
         if (ok.Count == 0) { Dialogs.Error("全制御開始", "開始できる制御対象がありません。", items); return; }
         if (!Dialogs.Confirm("全制御開始", "次の制御対象の演算とPV書込みを開始します。", $"{ok.Count} 件を開始", items: items)) return;
 
@@ -223,7 +226,7 @@ public sealed partial class MainViewModel : ObservableObject
         var plc = Engine.Plc;
         try
         {
-            if (plc is SlmpPlcClient client && client.Status.State != PlcConnectionState.Connected)
+            if (plc is IConnectablePlcClient client && client.Status.State != PlcConnectionState.Connected)
             {
                 Notify("PLCへ接続しています。接続完了後に制御を開始します");
                 var result = await client.ConnectAndWaitAsync(cts.Token);
@@ -255,6 +258,10 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    internal IReadOnlyList<CheckResult> TargetBlockers(ControlTarget target) =>
+        RegistrationValidator.Check(target.ToConfig(), Engine.Targets.Where(t => t != target), PlcSettings)
+            .Where(c => c.Level == CheckLevel.Block).ToList();
+
     private bool CanResetAllAlarms() => AlarmCount > 0;
 
     [RelayCommand(CanExecute = nameof(CanResetAllAlarms))]
@@ -281,7 +288,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var cfg = TargetConfig.Default(ModelKind.Level);
         (cfg.MvAddress, cfg.PvAddress, cfg.SpAddress) = NextAddresses();
-        var vm = new RegistrationViewModel(RegistrationMode.New, cfg, Engine.Targets, Engine.Plc);
+        var vm = new RegistrationViewModel(RegistrationMode.New, cfg, Engine.Targets, Engine.Plc, plcSettings: PlcSettings);
         if (!ShowRegistration(vm)) return;
         var t = AddTarget(vm.Result!, null);
         Notify($"{t.Name} を登録しました");
@@ -295,7 +302,7 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
         var vm = new RegistrationViewModel(RegistrationMode.Edit, t.Model.ToConfig(),
-            Engine.Targets.Where(x => x != t.Model), Engine.Plc, t.Name);
+            Engine.Targets.Where(x => x != t.Model), Engine.Plc, t.Name, PlcSettings);
         if (!ShowRegistration(vm)) return;
 
         var cfg = vm.Result!;
@@ -322,7 +329,7 @@ public sealed partial class MainViewModel : ObservableObject
         var cfg = t.Model.ToConfig();
         cfg.Name = $"{t.Name} のコピー";
         (cfg.MvAddress, cfg.PvAddress, cfg.SpAddress) = NextAddresses();
-        var vm = new RegistrationViewModel(RegistrationMode.Duplicate, cfg, Engine.Targets, Engine.Plc, t.Name);
+        var vm = new RegistrationViewModel(RegistrationMode.Duplicate, cfg, Engine.Targets, Engine.Plc, t.Name, PlcSettings);
         if (!ShowRegistration(vm)) return;
         var added = AddTarget(vm.Result!, $"{t.Name} から複製して登録");
         Notify($"{added.Name} を登録しました");
@@ -387,18 +394,19 @@ public sealed partial class MainViewModel : ObservableObject
         foreach (var (t, sp) in sps) Dummy.AddLoop(DummyPidLoop.For(t, sp));
     }
 
-    /// <summary>既存アドレスの次の10番台を提案する（D1000 → D1060 など）</summary>
+    /// <summary>選択中の通信方式に合うワードデバイスで、既存アドレスの次の10番台を提案する。</summary>
     private (string mv, string pv, string sp) NextAddresses()
     {
+        string prefix = PlcSettings.Mode == PlcMode.HostLink && !PlcSettings.Profile.EndsWith("-xym", StringComparison.Ordinal) ? "DM" : "D";
         int max = Engine.Targets
             .SelectMany(t => new[] { t.MvAddress, t.PvAddress, t.SpAddress })
-            .Select(a => Regex.Match(a ?? "", @"^D(\d+)$", RegexOptions.IgnoreCase))
+            .Select(a => Regex.Match(a ?? "", $@"^{prefix}(\d+)$", RegexOptions.IgnoreCase))
             .Where(m => m.Success)
             .Select(m => int.Parse(m.Groups[1].Value))
             .DefaultIfEmpty(990)
             .Max();
         int b = (max / 10 + 1) * 10;
-        return ($"D{b}", $"D{b + 2}", $"D{b + 4}"); // FLOAT32 / INT32 は各2ワード使う
+        return ($"{prefix}{b}", $"{prefix}{b + 2}", $"{prefix}{b + 4}"); // FLOAT32 / INT32 は各2ワード使う
     }
 
     // ---- プロジェクト（§13） ----
@@ -559,12 +567,16 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// 通信方式・接続先を切り替える。制御中の対象があれば確認して全停止してから切り替える。
-    /// SLMPは未接続の状態で保持し、接続操作まで通信を開始しない。
+    /// 実機用クライアントは未接続の状態で保持し、接続操作まで通信を開始しない。
     /// </summary>
     private bool ApplyPlcSettings(PlcSettings next, bool force)
     {
         bool changed = force || !next.SameConnection(PlcSettings);
-        if (!changed) return true;
+        if (!changed)
+        {
+            PlcSettings = next;
+            return true;
+        }
         _startAllCts?.Cancel();
 
         if (Targets.Any(t => !t.IsStopped))
@@ -577,7 +589,7 @@ public sealed partial class MainViewModel : ObservableObject
         IPlcClient client;
         try
         {
-            client = next.Mode == PlcMode.Slmp ? new SlmpPlcClient(next) : Dummy;
+            client = CreatePlcClient(next);
         }
         catch (Exception ex) when (ex is ArgumentException or FormatException or InvalidOperationException)
         {
@@ -593,10 +605,17 @@ public sealed partial class MainViewModel : ObservableObject
         return true;
     }
 
+    private IPlcClient CreatePlcClient(PlcSettings settings) => settings.Mode switch
+    {
+        PlcMode.Slmp => new SlmpPlcClient(settings),
+        PlcMode.HostLink => new HostLinkPlcClient(settings),
+        _ => Dummy,
+    };
+
     [RelayCommand(CanExecute = nameof(CanConnect))]
     private void ConnectPlc()
     {
-        if (Engine.Plc is not SlmpPlcClient client) return;
+        if (Engine.Plc is not IConnectablePlcClient client) return;
         client.Connect();
         UpdatePlcStatus();
         Notify("PLCへの接続を開始しました");
@@ -607,7 +626,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _startAllCts?.Cancel();
         Engine.StopAll("通信切断");
-        var old = Engine.SwapPlc(new SlmpPlcClient(PlcSettings));
+        var old = Engine.SwapPlc(CreatePlcClient(PlcSettings));
         await Task.Run(old.Dispose);
         foreach (var t in Targets) t.Refresh(false);
         UpdatePlcStatus();

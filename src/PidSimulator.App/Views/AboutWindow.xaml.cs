@@ -22,6 +22,7 @@ public partial class AboutWindow : Window
             new(ProductName, Version, "MIT", "アプリ本体・内部モジュール"),
             new("CommunityToolkit.Mvvm", VersionOf("CommunityToolkit.Mvvm"), "MIT", "画面とデータの連携"),
             new("PlcComm.Slmp", VersionOf("PlcComm.Slmp"), "MIT", "MELSEC SLMP通信"),
+            new("PlcComm.KvHostLink", VersionOf("PlcComm.KvHostLink"), "MIT", "KEYENCE Host Link通信"),
             new("ScottPlot", VersionOf("ScottPlot"), "MIT", "トレンドグラフ"),
             new("ScottPlot.WPF", VersionOf("ScottPlot.WPF"), "MIT", "WPFへのグラフ表示"),
             new("SkiaSharp", VersionOf("SkiaSharp"), "MIT", "グラフの描画基盤"),

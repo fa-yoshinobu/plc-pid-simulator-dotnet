@@ -59,9 +59,9 @@ public sealed class TargetConfig
     }
 }
 
-public enum PlcMode { Dummy, Slmp }
+public enum PlcMode { Dummy, Slmp, HostLink }
 
-/// <summary>PLC接続設定（仕様 §24）。Profile は PlcComm.Slmp の正規名（例: melsec:iq-r）で保存する。</summary>
+/// <summary>PLC接続設定（仕様 §24）。Profile は通信ライブラリの正規名（例: melsec:iq-r、keyence:kv-8000）で保存する。</summary>
 public sealed class PlcSettings
 {
     public PlcMode Mode { get; set; } = PlcMode.Dummy;
@@ -72,29 +72,47 @@ public sealed class PlcSettings
     public int TimeoutMs { get; set; } = 1000;
     public int CommCycleMs { get; set; } = 100;
 
+    /// <summary>SLMPの要求先CPU。ネットワーク番号0・局番FFのまま、Module I/Oだけを指定する。</summary>
+    public SlmpModuleIoTarget SlmpModuleIo { get; set; } = SlmpModuleIoTarget.OwnStation;
+
     /// <summary>GX Works3 の GX Simulator 3 に接続する（iQ-R / iQ-L のみ）。接続先は 127.0.0.1:5511 / TCP に固定。</summary>
     public bool UseGxSimulator { get; set; }
 
+    /// <summary>KV STUDIO のシミュレータに接続する。接続先は 127.0.0.1:8501 / TCP に固定。</summary>
+    public bool UseKvSimulator { get; set; }
+
     public const string GxSimulatorHost = "127.0.0.1";
     public const int GxSimulatorPort = 5511;
+    public const string KvSimulatorHost = "127.0.0.1";
+    public const int KvSimulatorPort = 8501;
 
     /// <summary>GX Simulator 3 が SLMP で応答する機種</summary>
     public static bool SupportsGxSimulator(string profile) => profile is "melsec:iq-r" or "melsec:iq-l";
 
-    public bool IsGxSimulator => UseGxSimulator && SupportsGxSimulator(Profile);
+    public static bool SupportsKvSimulator(string profile) => profile is
+        "keyence:kv-8000" or "keyence:kv-8000-xym" or "keyence:kv-x500" or "keyence:kv-x500-xym";
 
-    /// <summary>実際に接続する設定（GX Simulator 3 のときは接続先を固定値に置き換える）</summary>
+    public bool IsGxSimulator => Mode == PlcMode.Slmp && UseGxSimulator && SupportsGxSimulator(Profile);
+    public bool IsKvSimulator => Mode == PlcMode.HostLink && UseKvSimulator && SupportsKvSimulator(Profile);
+
+    /// <summary>実際に接続する設定（シミュレータのときは接続先を固定値に置き換える）</summary>
     public PlcSettings Effective()
     {
         var c = Clone();
-        if (!IsGxSimulator)
+        c.UseGxSimulator = IsGxSimulator;
+        c.UseKvSimulator = IsKvSimulator;
+        if (IsGxSimulator)
         {
-            c.UseGxSimulator = false;
-            return c;
+            c.Host = GxSimulatorHost;
+            c.Port = GxSimulatorPort;
+            c.Udp = false;
         }
-        c.Host = GxSimulatorHost;
-        c.Port = GxSimulatorPort;
-        c.Udp = false;
+        else if (IsKvSimulator)
+        {
+            c.Host = KvSimulatorHost;
+            c.Port = KvSimulatorPort;
+            c.Udp = false;
+        }
         return c;
     }
 
@@ -102,7 +120,9 @@ public sealed class PlcSettings
 
     public bool SameConnection(PlcSettings o) =>
         Mode == o.Mode && Profile == o.Profile && Host == o.Host && Port == o.Port && Udp == o.Udp
-        && TimeoutMs == o.TimeoutMs && CommCycleMs == o.CommCycleMs && IsGxSimulator == o.IsGxSimulator;
+        && TimeoutMs == o.TimeoutMs && CommCycleMs == o.CommCycleMs
+        && (Mode != PlcMode.Slmp || SlmpModuleIo == o.SlmpModuleIo)
+        && IsGxSimulator == o.IsGxSimulator && IsKvSimulator == o.IsKvSimulator;
 }
 
 public sealed class DataSettings

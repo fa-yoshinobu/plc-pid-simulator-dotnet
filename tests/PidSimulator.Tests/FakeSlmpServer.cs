@@ -30,6 +30,9 @@ public sealed class FakeSlmpServer : IAsyncDisposable
     public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
 
     public ConcurrentQueue<ushort> Commands { get; } = new();
+    public ConcurrentQueue<RequestRoute> Routes { get; } = new();
+
+    public sealed record RequestRoute(bool Is4E, byte Network, byte Station, ushort ModuleIo, byte Multidrop, ushort Command);
 
     public int ConnectionCount;
 
@@ -73,10 +76,11 @@ public sealed class FakeSlmpServer : IAsyncDisposable
                 ushort cmd = BinaryPrimitives.ReadUInt16LittleEndian(body.AsSpan(2));
                 ushort subcmd = BinaryPrimitives.ReadUInt16LittleEndian(body.AsSpan(4));
                 Commands.Enqueue(cmd);
+                var route = is4E ? head.AsSpan(4, 5).ToArray() : head.AsSpan(0, 5).ToArray();
+                Routes.Enqueue(new RequestRoute(is4E, route[0], route[1], BinaryPrimitives.ReadUInt16LittleEndian(route.AsSpan(2)), route[4], cmd));
                 var (end, data) = Handle(cmd, subcmd, body.AsSpan(6).ToArray());
 
                 // 応答：宛先（ネットワーク～マルチドロップ）はそのまま返す
-                var route = is4E ? head.AsSpan(4, 5).ToArray() : head.AsSpan(0, 5).ToArray();
                 var resp = new List<byte>();
                 if (is4E) resp.AddRange([0xD4, 0x00, head[0], head[1], 0x00, 0x00]);
                 else resp.AddRange([0xD0, 0x00]);

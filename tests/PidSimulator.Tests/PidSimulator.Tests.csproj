@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\PidSimulator.Core\PidSimulator.Core.csproj" />
     <ProjectReference Include="..\..\src\PidSimulator.Plc.Slmp\PidSimulator.Plc.Slmp.csproj" />
+    <ProjectReference Include="..\..\src\PidSimulator.Plc.HostLink\PidSimulator.Plc.HostLink.csproj" />
   </ItemGroup>
 
 </Project>

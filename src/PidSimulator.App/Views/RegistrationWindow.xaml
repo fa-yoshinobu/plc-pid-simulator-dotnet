@@ -231,6 +231,8 @@
                 <StackPanel Visibility="{Binding StepIndex, Converter={StaticResource IndexToVis}, ConverterParameter=3}">
                     <TextBlock Text="PLC通信設定" Style="{StaticResource StepHeading}"/>
                     <TextBlock Text="MVとSPはPLCから読み込み、PVはPLCへ書き込みます。PVの書込先は特に確認してください。" Style="{StaticResource StepLead}"/>
+                    <TextBlock Text="{Binding PlcConnectionSummary}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                    <TextBlock Text="{Binding WordAddressHint}" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,0,0,12"/>
                     <Grid>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition/></Grid.ColumnDefinitions>
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
@@ -313,7 +315,7 @@
                 <StackPanel Visibility="{Binding StepIndex, Converter={StaticResource IndexToVis}, ConverterParameter=2}">
                     <TextBlock Text="レンジ設定" Style="{StaticResource StepHeading}"/>
                     <CheckBox IsChecked="{Binding MvOnOff}" Content="MVをON/OFF（リレー）で受け取る（チェックなし：連続値）" Margin="0,10,0,6"/>
-                    <TextBlock Text="ON/OFFはM・Yなどのビット、またはD1.0形式を読み込み、OFF=0%、ON=100%として扱います。SSRの高速パルス制御は対象外です。"
+                    <TextBlock Text="{Binding RelayAddressHint}"
                                TextWrapping="Wrap" Foreground="{StaticResource Ink2Brush}" Margin="0,0,0,12"/>
                     <TextBlock Text="PLCのRAW値と工業値の対応を設定します。例: RAW 0～4000 ⇔ 0～100 %" Style="{StaticResource StepLead}"/>
                     <StackPanel Margin="0,0,0,12" Visibility="{Binding MvOnOff, Converter={StaticResource InvBoolToVis}}">

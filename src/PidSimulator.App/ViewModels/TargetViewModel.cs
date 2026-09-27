@@ -304,6 +304,12 @@ public sealed partial class TargetViewModel : ObservableObject
     [RelayCommand]
     private void Start()
     {
+        var blockers = _main.TargetBlockers(Model);
+        if (blockers.Count > 0)
+        {
+            Dialogs.Error("制御を開始できません", $"{Name} の登録内容と通信設定を確認してください。", blockers);
+            return;
+        }
         if (!_main.CheckPlcConnected()) return;
         var warnings = new List<Core.Project.CheckResult>();
         var dup = _main.Engine.Targets.FirstOrDefault(x => x != Model && string.Equals(x.PvAddress, Model.PvAddress, StringComparison.OrdinalIgnoreCase));

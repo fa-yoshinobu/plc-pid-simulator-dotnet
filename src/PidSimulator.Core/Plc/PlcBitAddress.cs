@@ -1,14 +1,23 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using PidSimulator.Core.Project;
 
 namespace PidSimulator.Core.Plc;
 
 public static class PlcBitAddress
 {
-    public static bool TryWordBit(string address, out string word, out int bit)
+    public static bool TryWordBit(string address, out string word, out int bit, PlcSettings? plc = null)
     {
         word = ""; bit = 0;
-        var m = Regex.Match(address.Trim().ToUpperInvariant(), @"^((?:D|W|R|ZR|SD)[0-9][0-9A-F]*)\.([0-9]+|[A-F])$");
+        if (plc?.Mode == PlcMode.HostLink)
+        {
+            if (!HostLinkAddressRules.TryResolve(address, "BIT", plc.Profile, out var parsed) || parsed.BitIndex is not int index) return false;
+            word = parsed.BaseAddress;
+            bit = index;
+            return true;
+        }
+        string families = plc?.Mode == PlcMode.Slmp ? "D|W|R|ZR|SD|SW" : "DM|EM|FM|ZF|TM|CM|VM|D|E|F|W|R|ZR|SD|SW";
+        var m = Regex.Match((address ?? "").Trim().ToUpperInvariant(), $@"^((?:{families})[0-9][0-9A-F]*)\.([0-9]+|[A-F])$");
         if (!m.Success) return false;
         string s = m.Groups[2].Value;
         bool valid = int.TryParse(s, s.Length == 1 && s[0] is >= 'A' and <= 'F' ? NumberStyles.HexNumber : NumberStyles.None,
@@ -17,8 +26,15 @@ public static class PlcBitAddress
         word = m.Groups[1].Value;
         return true;
     }
-    public static bool IsValid(string address) => TryWordBit(address, out _, out _) ||
-        Regex.IsMatch(address.Trim().ToUpperInvariant(), @"^(?:M|Y|X|B|L|F|V|S|SM|SB|TS|TC|CS|CC)[0-9][0-9A-F]*$");
+    public static bool IsValid(string address, PlcSettings? plc = null)
+    {
+        if (plc?.Mode == PlcMode.HostLink)
+            return HostLinkAddressRules.TryResolve(address, "BIT", plc.Profile, out _);
+        if (TryWordBit(address, out _, out _, plc)) return true;
+        string text = (address ?? "").Trim().ToUpperInvariant();
+        if (plc?.Mode != PlcMode.Slmp && Regex.IsMatch(text, @"^(?:R|MR|LR|CR|VB)[0-9][0-9A-F]*$")) return true;
+        return Regex.IsMatch(text, @"^(?:M|Y|X|B|L|F|V|S|SM|SB|TS|TC|CS|CC)[0-9][0-9A-F]*$");
+    }
 
     public static int Read(IReadOnlyDictionary<string, double> registers, string address)
     {

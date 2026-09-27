@@ -14,7 +14,9 @@ public static partial class RegistrationValidator
     [GeneratedRegex(@"^[A-Za-z]{1,3}[0-9][0-9A-Fa-f]*(\.(?:[0-9]|1[0-5]|[A-Fa-f]))?$")]
     private static partial Regex AddressPattern();
 
-    public static bool IsAddress(string s) => AddressPattern().IsMatch(s ?? "");
+    public static bool IsAddress(string s, PlcSettings? plc = null) => plc?.Mode == PlcMode.HostLink
+        ? HostLinkAddressRules.TryParse(s, plc.Profile, out _)
+        : AddressPattern().IsMatch(s ?? "");
 
     private static bool Same(string a, string b) => string.Equals(a?.Trim(), b?.Trim(), StringComparison.OrdinalIgnoreCase);
 
@@ -25,11 +27,17 @@ public static partial class RegistrationValidator
 
     private readonly record struct AddressSpan(string Device, ulong StartBit, ulong EndBit);
 
-    private static bool TryAddressSpan(string address, string dataType, out AddressSpan span)
+    private static bool TryAddressSpan(string address, string dataType, PlcSettings? plc, out AddressSpan span)
     {
         span = default;
+        if (plc?.Mode == PlcMode.HostLink)
+        {
+            if (!HostLinkAddressRules.TryResolve(address, dataType, plc.Profile, out var parsed)) return false;
+            span = new(parsed.Device, parsed.StartBit, parsed.StartBit + (uint)parsed.BitCount(dataType));
+            return true;
+        }
         string text = address.Trim().ToUpperInvariant();
-        bool wordBit = PlcBitAddress.TryWordBit(text, out var word, out int bit);
+        bool wordBit = PlcBitAddress.TryWordBit(text, out var word, out int bit, plc);
         if (wordBit) text = word;
         if (dataType == "BIT" && !wordBit) return false;
         int words = dataType switch { "INT16" or "UINT16" => 1, "INT32" or "FLOAT32" => 2, "BIT" => 1, _ => 0 };
@@ -44,18 +52,18 @@ public static partial class RegistrationValidator
         return true;
     }
 
-    private static bool Overlaps(string first, string firstType, string second, string secondType)
+    private static bool Overlaps(string first, string firstType, string second, string secondType, PlcSettings? plc)
     {
         if (Same(first, second)) return true;
         // 既存のワード内ビットと同一ワードの検査は、拡張形式を解釈できない場合も維持する。
-        if (PlcBitAddress.TryWordBit(first, out var firstWord, out _) && Same(firstWord, second)) return true;
-        if (PlcBitAddress.TryWordBit(second, out var secondWord, out _) && Same(first, secondWord)) return true;
-        return TryAddressSpan(first, firstType, out var a) && TryAddressSpan(second, secondType, out var b)
+        if (PlcBitAddress.TryWordBit(first, out var firstWord, out _, plc) && Same(firstWord, second)) return true;
+        if (PlcBitAddress.TryWordBit(second, out var secondWord, out _, plc) && Same(first, secondWord)) return true;
+        return TryAddressSpan(first, firstType, plc, out var a) && TryAddressSpan(second, secondType, plc, out var b)
             && a.Device == b.Device && a.StartBit < b.EndBit && b.StartBit < a.EndBit;
     }
 
     /// <param name="others">自分以外の登録済み対象（編集時は編集中の対象を除く）</param>
-    public static IReadOnlyList<CheckResult> Check(TargetConfig c, IEnumerable<ControlTarget> others)
+    public static IReadOnlyList<CheckResult> Check(TargetConfig c, IEnumerable<ControlTarget> others, PlcSettings? plc = null)
     {
         var list = new List<CheckResult>();
         var o = others.ToList();
@@ -64,8 +72,10 @@ public static partial class RegistrationValidator
         if (string.IsNullOrWhiteSpace(c.Name)) list.Add(new(CheckLevel.Block, "制御名称が未入力です"));
         if (!EngineeringUnits.IsSupportedMvUnit(c.Kind, c.MvRange.Unit, c.MvOnOff))
             list.Add(new(CheckLevel.Block, $"このモデル・制御方式のMV単位は {string.Join("・", EngineeringUnits.GetMvUnits(c.Kind, c.MvOnOff))} から選んでください"));
-        if (c.MvOnOff && !PlcBitAddress.IsValid(c.MvAddress))
-            list.Add(new(CheckLevel.Block, "ON/OFFのMVはM100・Y10などのビットデバイス、またはD1.0～D1.15のワード内ビットを指定してください"));
+        if (c.MvOnOff && !PlcBitAddress.IsValid(c.MvAddress, plc))
+            list.Add(new(CheckLevel.Block, plc?.Mode == PlcMode.HostLink && !plc.Profile.EndsWith("-xym", StringComparison.Ordinal)
+                ? "ON/OFFのMVはMR100・R100などのリレー、またはDM1.0～DM1.15のワード内ビットを指定してください"
+                : "ON/OFFのMVはM100・Y10などのビットデバイス、またはD1.0～D1.15のワード内ビットを指定してください"));
         foreach (var (label, r) in new[] { ("MV", c.MvRange), ("PV", c.PvRange), ("SP", c.SpRange) })
         {
             if (!r.IsValid) list.Add(new(CheckLevel.Block, $"{label} レンジは有限値で最小 < 最大を指定してください"));
@@ -77,33 +87,36 @@ public static partial class RegistrationValidator
             list.Add(new(CheckLevel.Block, "液面のPV・SP単位は同じ%またはmmを指定してください"));
         if (string.IsNullOrWhiteSpace(c.MvAddress) || string.IsNullOrWhiteSpace(c.PvAddress))
             list.Add(new(CheckLevel.Block, "MVアドレスとPVアドレスは必須です"));
-        else if (Overlaps(c.MvAddress, mvType, c.PvAddress, c.DataType))
+        else if (Overlaps(c.MvAddress, mvType, c.PvAddress, c.DataType, plc))
             list.Add(new(CheckLevel.Block, Same(c.MvAddress, c.PvAddress)
                 ? $"MVとPVが同じアドレス（{c.PvAddress}）です"
                 : $"MV {c.MvAddress} とPV {c.PvAddress} の使用範囲が重複しています。FLOAT32・INT32は2ワードを使用します。"));
-        if (c.UseSp && Overlaps(c.SpAddress, c.DataType, c.PvAddress, c.DataType))
+        if (c.UseSp && Overlaps(c.SpAddress, c.DataType, c.PvAddress, c.DataType, plc))
             list.Add(new(CheckLevel.Block, Same(c.SpAddress, c.PvAddress)
                 ? $"SPとPVが同じアドレス（{c.PvAddress}）です"
                 : $"SP {c.SpAddress} とPV {c.PvAddress} の使用範囲が重複しています。FLOAT32・INT32は2ワードを使用します。"));
 
         foreach (var (label, addr, type) in new[] { ("MV", c.MvAddress, mvType), ("PV", c.PvAddress, c.DataType), ("SP", c.UseSp ? c.SpAddress : "", c.DataType) })
         {
-            if (!string.IsNullOrWhiteSpace(addr) && !IsAddress(addr))
+            if (!string.IsNullOrWhiteSpace(addr) && plc?.Mode == PlcMode.HostLink
+                && !HostLinkAddressRules.TryResolve(addr, type, plc.Profile, out _))
+                list.Add(new(CheckLevel.Block, $"{label}アドレス「{addr}」は選択したKEYENCE機種・データ型で使用できません。数値信号はワードデバイス、ON/OFF信号はリレーまたはワード内ビットを指定してください。"));
+            else if (!string.IsNullOrWhiteSpace(addr) && !IsAddress(addr, plc))
                 list.Add(new(CheckLevel.Warn, $"{label}アドレス「{addr}」の形式を確認してください（例: D1000）"));
-            else if (!string.IsNullOrWhiteSpace(addr) && !TryAddressSpan(addr, type, out _)
-                && !(type == "BIT" && PlcBitAddress.IsValid(addr)))
+            else if (!string.IsNullOrWhiteSpace(addr) && !TryAddressSpan(addr, type, plc, out _)
+                && !(type == "BIT" && PlcBitAddress.IsValid(addr, plc)))
                 list.Add(new(CheckLevel.Warn, $"{label}アドレス「{addr}」の使用範囲を確認できません。機種・アドレス形式と、他の信号との重複を確認してください。"));
         }
 
-        var dup = o.FirstOrDefault(x => Overlaps(x.PvAddress, x.DataType, c.PvAddress, c.DataType));
+        var dup = o.FirstOrDefault(x => Overlaps(x.PvAddress, x.DataType, c.PvAddress, c.DataType, plc));
         if (dup != null)
             list.Add(new(CheckLevel.Warn, $"PV書込アドレス {c.PvAddress} は「{dup.Name}」と重複しています。2つの対象が同じアドレスへ書き込みます。"));
-        var reader = o.FirstOrDefault(x => Overlaps(x.MvAddress, x.MvDataType, c.PvAddress, c.DataType)
-            || (x.UseSp && Overlaps(x.SpAddress, x.DataType, c.PvAddress, c.DataType)));
+        var reader = o.FirstOrDefault(x => Overlaps(x.MvAddress, x.MvDataType, c.PvAddress, c.DataType, plc)
+            || (x.UseSp && Overlaps(x.SpAddress, x.DataType, c.PvAddress, c.DataType, plc)));
         if (reader != null)
             list.Add(new(CheckLevel.Warn, $"PV書込先 {c.PvAddress} は「{reader.Name}」の読込アドレスです。相手のMV/SPを上書きします。"));
-        var writer = o.FirstOrDefault(x => Overlaps(x.PvAddress, x.DataType, c.MvAddress, mvType)
-            || (c.UseSp && Overlaps(x.PvAddress, x.DataType, c.SpAddress, c.DataType)));
+        var writer = o.FirstOrDefault(x => Overlaps(x.PvAddress, x.DataType, c.MvAddress, mvType, plc)
+            || (c.UseSp && Overlaps(x.PvAddress, x.DataType, c.SpAddress, c.DataType, plc)));
         if (writer != null)
             list.Add(new(CheckLevel.Warn, $"MV/SPの読込範囲は「{writer.Name}」のPV書込先 {writer.PvAddress} と重複しています。相手のPV書込みで読込値が上書きされます。"));
         if (o.Any(x => x.Name == c.Name.Trim()))

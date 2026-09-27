@@ -7,6 +7,8 @@ using PidSimulator.Core;
 using PidSimulator.Core.Models;
 using PidSimulator.Core.Plc;
 using PidSimulator.Core.Project;
+using PidSimulator.Plc.HostLink;
+using PidSimulator.Plc.Slmp;
 
 namespace PidSimulator.App.ViewModels;
 
@@ -68,17 +70,24 @@ public sealed partial class RegistrationViewModel : ObservableObject
 {
     private readonly IReadOnlyList<ControlTarget> _others;
     private readonly IPlcClient _plc;
+    private readonly PlcSettings _plcSettings;
     private readonly TargetConfig _source;
     private readonly bool _loading;
     private bool _updatingMvUnits;
 
-    public RegistrationViewModel(RegistrationMode mode, TargetConfig source, IEnumerable<ControlTarget> others, IPlcClient plc, string? editingName = null)
+    public RegistrationViewModel(RegistrationMode mode, TargetConfig source, IEnumerable<ControlTarget> others, IPlcClient plc, string? editingName = null, PlcSettings? plcSettings = null)
     {
         _loading = true;
         Mode = mode;
         _source = source.Clone();
         _others = others.ToList();
         _plc = plc;
+        _plcSettings = plcSettings?.Clone() ?? plc switch
+        {
+            HostLinkPlcClient hostLink => hostLink.Settings.Clone(),
+            SlmpPlcClient slmp => slmp.Settings.Clone(),
+            _ => new PlcSettings(),
+        };
         EditingName = editingName;
         Models = new ListCollectionView(ModelCatalog.All.ToList());
         Models.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ModelInfo.Category)));
@@ -149,6 +158,18 @@ public sealed partial class RegistrationViewModel : ObservableObject
     }
 
     // ---- 4. PLC通信 ----
+    private bool IsHostLink => _plcSettings.Mode == PlcMode.HostLink;
+    private bool IsXym => IsHostLink && _plcSettings.Profile.EndsWith("-xym", StringComparison.Ordinal);
+    public string PlcConnectionSummary => _plc.Endpoint;
+    public string WordAddressHint => IsHostLink
+        ? IsXym ? "アドレス例：D1000（XYM表記）。INT32・FLOAT32は連続する2ワードを使用します。"
+            : "アドレス例：DM1000。INT32・FLOAT32は連続する2ワードを使用します。"
+        : "アドレス例：D1000。INT32・FLOAT32は連続する2ワードを使用します。";
+    public string RelayAddressHint => (IsHostLink
+        ? IsXym ? "ON/OFFはM・Yなどのビット、またはD1.0形式を読み込みます。"
+            : "ON/OFFはMR・Rなどのビット、またはDM1.0形式を読み込みます。"
+        : "ON/OFFはM・Yなどのビット、またはD1.0形式を読み込みます。")
+        + "OFF=0%、ON=100%として扱います。SSRの高速パルス制御は対象外です。";
     [ObservableProperty] private string _mvAddress;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(DataTypeLabel))] private bool _mvOnOff;
     public string DataTypeLabel => MvOnOff ? "PV・SPデータ型" : "データ型";
@@ -347,7 +368,7 @@ public sealed partial class RegistrationViewModel : ObservableObject
     {
         var cfg = BuildConfig();
         Checks.Clear();
-        foreach (var c in RegistrationValidator.Check(cfg, _others)) Checks.Add(c);
+        foreach (var c in RegistrationValidator.Check(cfg, _others, _plcSettings)) Checks.Add(c);
         HasBlockers = Checks.Any(c => c.Level == CheckLevel.Block);
         HasWarnings = Checks.Any(c => c.Level == CheckLevel.Warn);
         Acknowledged = false;
@@ -432,7 +453,7 @@ public sealed partial class RegistrationViewModel : ObservableObject
     private async Task<TestRow> ReadRowAsync(string signal, string address, RangeDef range)
     {
         string addr = address.Trim().ToUpperInvariant();
-        if (!RegistrationValidator.IsAddress(addr)) return new TestRow(signal, addr, DataType, "—", "—", "アドレス形式が不正", false);
+        if (!RegistrationValidator.IsAddress(addr, _plcSettings)) return new TestRow(signal, addr, DataType, "—", "—", "選択中のPLC機種では使えないアドレスです", false);
         bool relay = signal == "MV" && MvOnOff;
         string type = relay ? "BIT" : DataType;
         var r = await _plc.TestReadAsync(addr, type);
@@ -449,7 +470,7 @@ public sealed partial class RegistrationViewModel : ObservableObject
         if (!PvWriteAck) return;
         var range = PvRange.ToRange();
         string addr = PvAddress.Trim().ToUpperInvariant();
-        if (!range.IsValid || !RegistrationValidator.IsAddress(addr) || !double.IsFinite(PvTestValue))
+        if (!range.IsValid || !RegistrationValidator.IsAddress(addr, _plcSettings) || !double.IsFinite(PvTestValue))
         {
             PvTestResult = "アドレスまたはレンジを確認してください";
             return;

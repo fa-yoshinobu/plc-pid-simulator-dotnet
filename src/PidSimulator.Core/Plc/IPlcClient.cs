@@ -29,7 +29,7 @@ public interface IPlcClient : IDisposable
 
     PlcStatus Status { get; }
 
-    /// <param name="dataType">INT16 / UINT16 / INT32 / FLOAT32</param>
+    /// <param name="dataType">INT16 / UINT16 / INT32 / FLOAT32 / BIT</param>
     PlcIoStatus Read(string address, string dataType, out double raw);
 
     PlcIoStatus Write(string address, string dataType, double raw);
@@ -44,11 +44,18 @@ public interface IPlcClient : IDisposable
     Task<PlcTestResult> TestWriteAsync(string address, string dataType, double raw, CancellationToken ct = default);
 }
 
+/// <summary>明示的な接続操作で通信を開始する実機クライアント。</summary>
+public interface IConnectablePlcClient : IPlcClient
+{
+    void Connect();
+    Task<PlcTestResult> ConnectAndWaitAsync(CancellationToken ct = default);
+}
+
 public static class PlcDataTypes
 {
     public static readonly string[] All = ["INT16", "UINT16", "INT32", "FLOAT32"];
 
-    /// <summary>PlcComm.Slmp の型指定子（S/U/L/F）</summary>
+    /// <summary>SLMP / Host Link ライブラリの型指定子（S/U/L/F/BIT）</summary>
     public static string Suffix(string dataType) => dataType switch
     {
         "BIT" => "BIT",
