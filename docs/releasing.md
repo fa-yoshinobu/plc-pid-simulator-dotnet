@@ -20,13 +20,13 @@ VirusTotalへの通常の送信は公開サンプルの投稿です。検査結�
 
 3. **Actions → Release** で進捗を確認します。
 
-[Releaseワークフロー](../.github/workflows/release.yml)は.NET 9でテスト・発行後、`PidSimulator-v0.1.1-win-x64.zip` を公開します。ZIPの内容は **`PidSimulator.exe` と `DEMO.psim` の2ファイルだけ**です。
+[Releaseワークフロー](../.github/workflows/release.yml)は.NET 9でテスト・発行後、`PidSimulator-win-x64.zip` と `PidSimulator-win-x64.zip.sha256` を公開します。ZIPの内容は **`PidSimulator.exe` と `DEMO.psim` の2ファイルだけ**です。
 
 タグは `vMAJOR.MINOR.PATCH` または `vMAJOR.MINOR.PATCH-rc.1` などの形式を使用します。EXEのバージョンもタグに合わせます。ハイフン付きのタグはGitHubのプレリリースとして公開します。作成済みのタグから公開する場合は **Actions → Release → Run workflow** の `release_tag` にそのタグを指定します。
 
 公開時の本文にはダウンロードリンク・起動方法と「VirusTotal：検査中。」を表示します。公開後のジョブがVirusTotalの検査ワークフローを呼び、完了すると検査中の表示を結果リンクに置き換えます。
 
-本文の定型文は [`.github/release-notes.md`](../.github/release-notes.md) で管理し、GitHub ActionsがダウンロードURLとVirusTotalのリンクを埋め込みます。検査が完了している既存リリースの本文だけを更新する場合は、**Actions → Update release notes → Run workflow** で `release_tag` を指定します。配布ファイルやタグを変更せず、VirusTotalの再検査も行いません。
+本文の定型文は [`.github/release-notes.md`](../.github/release-notes.md) で管理し、GitHub ActionsがダウンロードURLとVirusTotalのリンクを埋め込みます。検査が完了している既存リリースの本文だけを更新する場合は、**Actions → Update English release notes → Run workflow** で `release_tag` を指定します。配布ファイルやタグを変更せず、VirusTotalの再検査も行いません。
 
 ## 公開後の検査と再検査
 
@@ -34,7 +34,7 @@ VirusTotalへの通常の送信は公開サンプルの投稿です。検査結�
 
 - 上記のReleaseワークフローがZIPを公開したあとに呼び出す。
 - GitHubの画面などからReleaseを公開したときの `release: published` イベント。
-- **Actions → Check published release with VirusTotal → Run workflow** で公開済みの `release_tag` を指定して再検査する。
+- **Actions → Scan release with VirusTotal → Run workflow** で公開済みの `release_tag` を指定して再検査する。
 
 公開済みのEXE、または公開ZIP内のEXEを取得して検査します。このアプリの配布ZIPでは `PidSimulator.exe` が対象です。再検査では本文内の検査欄だけを置き換えます。
 
@@ -47,3 +47,5 @@ VirusTotalへの通常の送信は公開サンプルの投稿です。検査結�
 ## 使用するVirusTotal API
 
 [VirusTotal API v3のファイル送信](https://docs.virustotal.com/reference/files-scan)を使用します。32 MBを超えるEXEは[大容量ファイル用のアップロードURL](https://docs.virustotal.com/reference/files-upload-url)を取得して送信し、この経路の上限は650 MBです。自己完結EXEは32 MBを超えるため、大容量送信に対応しています。APIキーの利用枠や契約による制約も適用されます。
+
+新しい固定名ZIPとSHA-256は次回リリースから適用します。旧リリースのAssetは変更しません。本文更新ワークフローも新形式のAssetがあるリリースだけを対象にします。

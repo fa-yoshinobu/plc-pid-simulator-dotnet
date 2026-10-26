@@ -181,22 +181,22 @@ def markdown_text(value):
 def report_markdown(report):
     lines = [f"### {markdown_text(report['filename'])}", ""]
     if report["status"] != "completed":
-        lines += ["**VirusTotal 検査未完了**", "", markdown_text(report["error"])]
+        lines += ["**VirusTotal scan incomplete**", "", markdown_text(report["error"])]
     else:
         stats = report["stats"]
         lines += [
-            "**VirusTotal 検査済み**", "",
-            f"[VirusTotalの検査結果を見る]({report['url']})", "",
-            f"結果取得日時（UTC）: {report['checked_at']}", "",
-            "| エンジンの判定 | 件数 |", "| --- | ---: |",
+            "**VirusTotal scan completed**", "",
+            f"[VirusTotal results]({report['url']})", "",
+            f"Checked at (UTC): {report['checked_at']}", "",
+            "| Engine category | Count |", "| --- | ---: |",
             f"| malicious | {stats['malicious']} |", f"| suspicious | {stats['suspicious']} |",
             f"| undetected | {stats['undetected']} |", f"| harmless | {stats['harmless']} |",
-            f"| タイムアウト・失敗・未対応 | {sum(value for key, value in stats.items() if key not in {'malicious', 'suspicious', 'undetected', 'harmless'})} |",
+            f"| Timeout, failure or unsupported | {sum(value for key, value in stats.items() if key not in {'malicious', 'suspicious', 'undetected', 'harmless'})} |",
             "", f"SHA-256: `{report['sha256']}`", "",
-            "検査時点の各エンジンの結果です。利用するかどうかはリンク先の詳細を確認して判断してください。",
+            "These are point-in-time engine results. Review the linked details before use.",
         ]
         if report["detections"]:
-            lines += ["", "| 検出を報告したエンジン | 判定 | 検出名 |", "| --- | --- | --- |"]
+            lines += ["", "| Reporting engine | Category | Detection |", "| --- | --- | --- |"]
             for item in report["detections"]:
                 lines.append(f"| {markdown_text(item['engine'])} | {item['category']} | {markdown_text(item['result'] or '—')} |")
     return "\n".join(lines) + "\n"

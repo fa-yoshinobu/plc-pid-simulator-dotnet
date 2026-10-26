@@ -32,7 +32,7 @@ jobs:
       DOTNET_NOLOGO: 'true'
       DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
     outputs:
-      release_tag: ${{ steps.version.outputs.release_tag }}
+      release_tag: ${{ steps.publish_release.outputs.release_tag }}
 
     steps:
       - name: Validate release tag
@@ -43,7 +43,7 @@ jobs:
           }
           $version = $env:RELEASE_TAG.Substring(1)
           "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
-          "RELEASE_ASSET=PidSimulator-$env:RELEASE_TAG-win-x64.zip" >> $env:GITHUB_ENV
+          "RELEASE_ASSET=PidSimulator-win-x64.zip" >> $env:GITHUB_ENV
           "release_tag=$env:RELEASE_TAG" >> $env:GITHUB_OUTPUT
 
       - name: Checkout release tag
@@ -88,20 +88,33 @@ jobs:
             }
           } finally { $archive.Dispose() }
 
-      - name: Publish ZIP
+      - name: Set up release tools
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.13'
+
+      - name: Prepare ZIP checksum and English release notes
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          python .github/scripts/release_assets.py prepare --repository "$env:GITHUB_REPOSITORY" --release-tag "$env:RELEASE_TAG" --asset-name PidSimulator-win-x64.zip --zip artifacts/PidSimulator-win-x64.zip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Publish ZIP and checksum
+        id: publish_release
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
         run: |
-          $zip = Join-Path 'artifacts' $env:RELEASE_ASSET
-          ./.github/scripts/render-release-notes.ps1 -Repository $env:GITHUB_REPOSITORY -ReleaseTag $env:RELEASE_TAG -OutputPath 'artifacts/release-notes.md'
-          $releaseArgs = @(
-            'release', 'create', $env:RELEASE_TAG, '--repo', $env:GITHUB_REPOSITORY,
-            '--verify-tag', '--title', "PID Process Simulator $env:RELEASE_TAG",
-            '--notes-file', 'artifacts/release-notes.md', $zip
-          )
+          $releaseArgs = @('release', 'create', $env:RELEASE_TAG, '--repo', $env:GITHUB_REPOSITORY,
+            '--verify-tag', '--title', "PID Process Simulator $env:RELEASE_TAG", '--notes-file', 'artifacts/release/release-notes.md',
+            'artifacts/release/PidSimulator-win-x64.zip', 'artifacts/release/PidSimulator-win-x64.zip.sha256')
           if ($env:RELEASE_TAG.Contains('-')) { $releaseArgs += '--prerelease' }
           gh @releaseArgs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "release_tag=$env:RELEASE_TAG" >> $env:GITHUB_OUTPUT
 
   check-published-release:
     needs: publish

@@ -131,8 +131,8 @@ class VirusTotalTests(unittest.TestCase):
         self.assertEqual(1, code)
         connect.assert_not_called()
         markdown = (output / "virustotal.md").read_text(encoding="utf-8")
-        self.assertIn("検査未完了", markdown)
-        self.assertNotIn("検査済み", markdown)
+        self.assertIn("scan incomplete", markdown)
+        self.assertNotIn("scan completed", markdown)
 
     def test_timeout_does_not_produce_completed_result(self):
         client, _ = self.client([{"data": {"id": "123"}}, analysis(status="queued")], timeout=40)

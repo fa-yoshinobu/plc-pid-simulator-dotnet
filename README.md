@@ -1,4 +1,4 @@
-﻿# PID Process Simulator
+# PID Process Simulator
 
 ![PID Process Simulator](docs/images/social-preview.png)
 
@@ -62,3 +62,19 @@ Windows 10 / 11（64ビット）で動作します。.NETの追加インスト�
 ## ライセンス
 
 [MIT License](LICENSE)
+
+## Release distribution (next release)
+
+The fixed-name ZIP and checksum links below become available with the next standard release. Existing release assets and the download links above remain unchanged.
+
+- [Latest Windows x64 ZIP](https://github.com/fa-yoshinobu/plc-pid-simulator-dotnet/releases/latest/download/PidSimulator-win-x64.zip)
+- [ZIP SHA-256 checksum](https://github.com/fa-yoshinobu/plc-pid-simulator-dotnet/releases/latest/download/PidSimulator-win-x64.zip.sha256)
+- [Changelog](CHANGELOG.md) / [TODO](TODO.md)
+
+Extract the ZIP file and run `PidSimulator.exe`. Keep `DEMO.psim` in the same folder.
+
+Windows x64. The .NET runtime is included.
+
+Release notes and VirusTotal scan messages are in English. Existing project documents may keep their current language.
+
+Maintainers: update the English Changes section in `.github/release-notes.md` from the relevant CHANGELOG entries before releasing. The release workflow publishes the ZIP and checksum, then scans the actual published executables. Use the `Scan release with VirusTotal` workflow with a release tag to retry an incomplete scan. See the [shared release standard](https://github.com/fa-yoshinobu/release_standard).

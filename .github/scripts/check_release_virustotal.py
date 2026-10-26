@@ -30,7 +30,7 @@ def copy_limited(source, destination, limit=MAX_BYTES):
     while chunk := source.read(min(1024 * 1024, limit - total + 1)):
         total += len(chunk)
         if total > limit:
-            raise CheckError("対象ファイルが650 MBの上限を超えています。")
+            raise CheckError("The file exceeds the 650 MB limit.")
         destination.write(chunk)
     return total
 
@@ -40,7 +40,7 @@ def replace_block(body: str, content: str) -> str:
     if START not in body and END not in body:
         return body + ("\n\n" if body else "") + block + "\n"
     if body.count(START) != 1 or body.count(END) != 1 or body.index(START) > body.index(END):
-        raise CheckError("Release本文のVirusTotal管理区間が不正なため、自動更新できません。")
+        raise CheckError("The release has an invalid VirusTotal managed block; no update was made.")
     return body[:body.index(START)] + block + body[body.index(END) + len(END):]
 
 
@@ -53,7 +53,7 @@ def markdown_label(value: str) -> str:
 class GitHub:
     def __init__(self, repository: str, output: Path):
         if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
-            raise CheckError("repositoryはowner/repo形式で指定してください。")
+            raise CheckError("Specify repository as owner/repo.")
         self.repository = repository
         self.work = output / "work"
         self.work.mkdir(parents=True, exist_ok=True)
@@ -67,34 +67,34 @@ class GitHub:
         try:
             result = subprocess.run(args, capture_output=True, check=False)
         except OSError as exc:
-            raise CheckError("GitHub CLIを起動できませんでした。") from exc
+            raise CheckError("Unable to start GitHub CLI.") from exc
         if result.returncode:
-            raise CheckError("GitHub APIへのアクセスに失敗しました。")
+            raise CheckError("GitHub API access failed.")
         try:
             return json.loads(result.stdout)
         except (ValueError, UnicodeError) as exc:
-            raise CheckError("GitHub APIの応答を読み取れませんでした。") from exc
+            raise CheckError("Unable to read the GitHub API response.") from exc
 
     def release(self, tag: str):
         release = self.api(f"repos/{self.repository}/releases/tags/{quote(tag, safe='')}")
         if not isinstance(release, dict) or release.get("draft") is not False or not release.get("published_at"):
-            raise CheckError("公開済みのReleaseだけを検査できます。")
+            raise CheckError("Only published releases can be scanned.")
         if not isinstance(release.get("id"), int):
-            raise CheckError("Releaseの識別情報を確認できませんでした。")
+            raise CheckError("Unable to verify the release identity.")
         return release
 
     def update_body(self, tag: str, release_id: int, content: str):
         # Fetch again so edits made while the scan was running are preserved.
         current = self.release(tag)
         if current["id"] != release_id:
-            raise CheckError("検査中にReleaseが置き換わったため、本文を更新しませんでした。")
+            raise CheckError("The release was replaced during analysis; its body was not updated.")
         body = replace_block(current.get("body") or "", content)
         self.api(f"repos/{self.repository}/releases/{release_id}", {"body": body})
 
     def download(self, asset: dict, destination: Path):
         size, asset_id = asset.get("size"), asset.get("id")
         if type(size) is not int or not 0 < size <= MAX_BYTES or type(asset_id) is not int or asset_id <= 0:
-            raise CheckError("Release assetのサイズまたは識別情報が不正です（上限650 MB）。")
+            raise CheckError("Invalid release asset identity or size (maximum 650 MB).")
         args = ["gh", "api", f"repos/{self.repository}/releases/assets/{asset_id}",
                 "--header", "Accept: application/octet-stream"]
         try:
@@ -108,9 +108,9 @@ class GitHub:
                     process.wait()
                     raise
         except OSError as exc:
-            raise CheckError("公開ファイルのダウンロードに失敗しました。") from exc
+            raise CheckError("Release asset download failed.") from exc
         if returncode or actual != size:
-            raise CheckError("公開ファイルを正しくダウンロードできませんでした。")
+            raise CheckError("The release asset could not be downloaded correctly.")
 
 
 def executable_files(github: GitHub, assets: list):
@@ -120,7 +120,7 @@ def executable_files(github: GitHub, assets: list):
             continue
         asset_id = asset.get("id")
         if type(asset_id) is not int or asset_id <= 0:
-            raise CheckError("Release assetの識別情報が不正です。")
+            raise CheckError("Invalid release asset identity.")
         destination = github.work / f"asset-{asset_id}.download"
         github.download(asset, destination)
         if name.lower().endswith(".exe"):
@@ -134,18 +134,18 @@ def executable_files(github: GitHub, assets: list):
                     if entry.is_dir() or not entry.filename.lower().endswith(".exe"):
                         continue
                     if stat.S_ISLNK(entry.external_attr >> 16):
-                        raise CheckError("ZIP内のEXEがシンボリックリンクのため検査できません。")
+                        raise CheckError("An executable in the ZIP is a symbolic link and cannot be scanned.")
                     if not 0 < entry.file_size <= MAX_BYTES:
-                        raise CheckError("ZIP内のEXEが650 MBの上限を超えているか空です。")
+                        raise CheckError("An executable in the ZIP is empty or exceeds 650 MB.")
                     # Never use the ZIP path to form a local destination, including ../.
                     executable = github.work / f"asset-{asset_id}-member-{index}.exe"
                     with archive.open(entry) as source, executable.open("wb") as stream:
                         size = copy_limited(source, stream)
                     if size != entry.file_size:
-                        raise CheckError("ZIP内のEXEを正しく読み取れませんでした。")
+                        raise CheckError("Unable to read an executable from the ZIP correctly.")
                     yield f"{name} / {entry.filename}", executable
         except (zipfile.BadZipFile, RuntimeError, NotImplementedError, OSError) as exc:
-            raise CheckError("公開ZIPからEXEを読み取れませんでした。") from exc
+            raise CheckError("Unable to read an executable from the release ZIP.") from exc
 
 
 def file_sha256(path: Path) -> str:
@@ -165,7 +165,7 @@ def scan_file(path: Path, sha256: str, reports: Path) -> dict:
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False, timeout=1900)
         raw = json.loads((folder / "virustotal.json").read_text(encoding="utf-8"))
         if raw.get("sha256") is not None and raw["sha256"] != sha256:
-            raise CheckError("検査結果のSHA-256が公開ファイルと一致しませんでした。")
+            raise CheckError("The analysis SHA-256 does not match the release executable.")
         record["complete"] = (process.returncode == 0 and raw.get("sha256") == sha256
                               and raw.get("verdict") == "completed" and raw.get("status") == "completed")
         stats = raw.get("stats", {})
@@ -175,11 +175,11 @@ def scan_file(path: Path, sha256: str, reports: Path) -> dict:
         if isinstance(raw.get("checked_at"), str):
             record["checked_at"] = raw["checked_at"]
         if not record["complete"]:
-            record["error"] = "VirusTotalの検査が完了しませんでした。APIキー・上限・実行時間を確認してください。"
+            record["error"] = "VirusTotal analysis did not complete. Check the API key, quota and timeout."
     except CheckError as exc:
         record["error"] = str(exc)
     except (OSError, ValueError, UnicodeError, TypeError, AttributeError, subprocess.TimeoutExpired):
-        record["error"] = "VirusTotal検査を実行または結果を取得できませんでした。"
+        record["error"] = "Unable to run VirusTotal analysis or read its result."
     return record
 
 
@@ -193,43 +193,46 @@ def asset_signature(assets: list) -> list:
 def run_link(repository: str) -> str:
     run_id = os.environ.get("GITHUB_RUN_ID", "")
     if run_id.isdecimal():
-        return f"[Actionsの実行結果](https://github.com/{repository}/actions/runs/{run_id})"
-    return "[Actionsの実行結果](https://github.com/" + repository + "/actions)"
+        return f"[Workflow run](https://github.com/{repository}/actions/runs/{run_id})"
+    return "[Workflow run](https://github.com/" + repository + "/actions)"
 
 
 def report_markdown(entries: list, errors: list, link: str) -> str:
     complete = bool(entries) and not errors and all(entry["complete"] for entry in entries)
-    lines = ["**VirusTotal検査済み**" if complete else "**VirusTotal 検査未完了**", "", link]
+    lines = ["**VirusTotal scan completed**" if complete else "**VirusTotal scan incomplete**", "", link]
     for entry in entries:
         lines.extend(["", "### " + markdown_label(entry["name"])])
         if entry["complete"]:
             stats = entry["stats"]
             malicious, suspicious = stats.get("malicious", 0), stats.get("suspicious", 0)
-            lines.append(f"検査完了：悪意あり {malicious}、疑わしい {suspicious}（結果合計 {sum(stats.values())}）。")
+            lines.append(f"Analysis completed: malicious {malicious}, suspicious {suspicious} (total engine results {sum(stats.values())}).")
         else:
-            lines.append("検査未完了。")
+            lines.append("Scan incomplete.")
         if entry.get("obsolete"):
-            lines.append("公開ファイルが変更されたため、以下は変更前の参考結果です。再検査が必要です。")
-        lines.append(f"[VirusTotalの検査結果を見る]({entry['url']})")
+            lines.append("The assets changed. These obsolete results are for reference only; a rescan is required.")
+        lines.append(f"[VirusTotal results]({entry['url']})")
         if entry.get("checked_at"):
-            lines.append("結果取得日時（UTC）: " + markdown_label(entry["checked_at"]))
+            lines.append("Checked at (UTC): " + markdown_label(entry["checked_at"]))
         lines.append(f"SHA-256: `{entry['sha256']}`")
     if errors:
         lines.extend(["", *["- " + markdown_label(error) for error in errors]])
-    lines.extend(["", "検査時点の結果です。検査結果や検査未完了を理由に、Releaseの公開状態・配布ファイルは変更しません。"])
+    lines.extend(["", "Results reflect the analysis time. Scan results do not change release visibility or distribution files."])
     return "\n".join(lines)
 
 
 def release_markdown(entries: list, errors: list) -> str:
     complete = bool(entries) and not errors and all(entry["complete"] for entry in entries)
-    lines = [] if complete else ["VirusTotal：検査未完了。"]
-    current = [entry for entry in entries if not entry.get("obsolete")]
-    for entry in current:
-        label = "VirusTotalの検査結果"
+    lines = ["## Security scan"]
+    if not complete:
+        lines.append("VirusTotal scan incomplete.")
+    for entry in entries:
+        if entry.get("obsolete"):
+            continue
+        label = "VirusTotal results"
         if len(entries) > 1:
-            label += "（" + markdown_label(entry["name"]) + "）"
-        lines.append(f"[{label}]({entry['url']})")
-    return "\n\n".join(lines)
+            label += " for " + markdown_label(entry["name"])
+        lines.append(f"- [{label}]({entry['url']})")
+    return "\n".join(lines)
 
 
 def check_release(repository: str, tag: str, output: Path, github=None) -> int:
@@ -242,13 +245,13 @@ def check_release(repository: str, tag: str, output: Path, github=None) -> int:
     try:
         github = github or GitHub(repository, output)
         if not os.environ.get("GH_TOKEN"):
-            raise CheckError("GH_TOKENが設定されていません。")
+            raise CheckError("GH_TOKEN is not configured.")
         release = github.release(tag)
         release_id = release["id"]
-        github.update_body(tag, release_id, "VirusTotal：検査中。")
+        github.update_body(tag, release_id, "## Security scan\nVirusTotal scan in progress.")
         assets = release.get("assets", [])
         if not isinstance(assets, list):
-            raise CheckError("Releaseの配布ファイル一覧を取得できませんでした。")
+            raise CheckError("Unable to read the release asset list.")
         original_assets = asset_signature(assets)
         for name, executable in executable_files(github, assets):
             sha256 = file_sha256(executable)
@@ -256,30 +259,30 @@ def check_release(repository: str, tag: str, output: Path, github=None) -> int:
                 seen[sha256] = scan_file(executable, sha256, reports)
             entries.append({"name": name, **seen[sha256]})
         if not entries:
-            raise CheckError("公開Releaseに検査対象のEXEが見つかりませんでした。")
+            raise CheckError("No executable was found in the published release.")
     except CheckError as exc:
         errors.append(str(exc))
     except Exception:
         # Do not expose API bodies, tokens, ZIP parser details, or machine paths.
-        errors.append("公開Releaseの検査処理でエラーが発生しました。")
+        errors.append("An error occurred while scanning the published release.")
     if any(not entry["complete"] for entry in entries):
-        errors.append("一部のEXEのVirusTotal検査が完了しませんでした。")
+        errors.append("VirusTotal analysis did not complete for all executables.")
     if original_assets is not None:
         try:
             current = github.release(tag)
             if current["id"] != release_id or asset_signature(current.get("assets", [])) != original_assets:
-                errors.append("検査中に公開EXEまたはZIPが変更されました。公開ファイル変更後は再検査してください。")
+                errors.append("Release assets changed during analysis. Rescan the changed release assets.")
                 for entry in entries:
                     entry["complete"] = False
                     entry["obsolete"] = True
         except Exception:
-            errors.append("検査完了時に公開ファイルが変更されていないことを確認できませんでした。")
+            errors.append("Unable to verify that the release assets were unchanged after analysis.")
     content = report_markdown(entries, errors, link)
     if release_id is not None:
         try:
             github.update_body(tag, release_id, release_markdown(entries, errors))
         except Exception:
-            errors.append("Release本文への検査結果の反映に失敗しました。")
+            errors.append("Unable to update the release body with the scan results.")
             content = report_markdown(entries, errors, link)
     complete = bool(entries) and not errors and all(entry["complete"] for entry in entries)
     (reports / "release-virustotal.json").write_text(

@@ -161,10 +161,10 @@ class ReleaseVirusTotalTests(unittest.TestCase):
         with mock.patch.object(check, "scan_file", side_effect=scan) as scanner:
             self.assertEqual(check.check_release("owner/repo", "v1", self.output, github), 0)
             self.assertEqual(scanner.call_count, 1)
-        self.assertIn("検査中", github.updates[0])
-        self.assertIn("[VirusTotalの検査結果", github.updates[-1])
+        self.assertIn("scan in progress", github.updates[0])
+        self.assertIn("[VirusTotal results", github.updates[-1])
         self.assertIn("/detection)", github.updates[-1])
-        self.assertNotIn("悪意あり", github.body)
+        self.assertNotIn("malicious", github.body)
         self.assertNotIn("SHA-256", github.body)
         self.assertNotIn("actions/runs/12345", github.body)
         self.assertEqual(github.body.count(check.START), 1)
@@ -182,7 +182,7 @@ class ReleaseVirusTotalTests(unittest.TestCase):
         github = FakeGitHub(self.output, [("program.exe", b"MZ")])
         with mock.patch.object(check, "scan_file", return_value={"sha256": "a" * 64, "url": "https://example.test", "complete": False, "stats": {}, "error": "incomplete"}):
             self.assertEqual(check.check_release("owner/repo", "v1", self.output, github), 1)
-        self.assertIn("検査未完了", github.updates[-1])
+        self.assertIn("scan incomplete", github.updates[-1])
         self.assertTrue(github.body.startswith("Original release notes."))
 
     def test_release_asset_replacement_is_not_associated_with_old_completed_scan(self):
@@ -193,25 +193,25 @@ class ReleaseVirusTotalTests(unittest.TestCase):
                     "stats": {"malicious": 0, "undetected": 60}, "checked_at": "2026-01-01T23:00:00+00:00"}
         with mock.patch.object(check, "scan_file", side_effect=scan):
             self.assertEqual(check.check_release("owner/repo", "v1", self.output, github), 1)
-        self.assertIn("検査未完了", github.updates[-1])
-        self.assertNotIn("検査済み", github.updates[-1])
+        self.assertIn("scan incomplete", github.updates[-1])
+        self.assertNotIn("scan completed", github.updates[-1])
         self.assertNotIn("/detection", github.updates[-1])
         details = (self.output / "reports/release-virustotal.md").read_text(encoding="utf-8")
-        self.assertIn("公開ファイル変更後は再検査", details)
-        self.assertIn("変更前の参考結果", details)
-        self.assertIn("結果取得日時（UTC）: 2026-01-01T23:00:00+00:00", details)
+        self.assertIn("Rescan the changed release assets", details)
+        self.assertIn("obsolete results", details)
+        self.assertIn("Checked at (UTC): 2026-01-01T23:00:00+00:00", details)
 
     def test_download_failure_still_updates_incomplete_status(self):
         github = FakeGitHub(self.output, [("program.exe", b"MZ")])
         with mock.patch.object(github, "download", side_effect=check.CheckError("download failed")), mock.patch.object(check, "scan_file") as scanner:
             self.assertEqual(check.check_release("owner/repo", "v1", self.output, github), 1)
             scanner.assert_not_called()
-        self.assertIn("検査未完了", github.updates[-1])
+        self.assertIn("scan incomplete", github.updates[-1])
 
     def test_no_executable_is_not_reported_as_scanned(self):
         github = FakeGitHub(self.output, [("docs.zip", archive_bytes([("readme.md", b"text")]))])
         self.assertEqual(check.check_release("owner/repo", "v1", self.output, github), 1)
-        self.assertNotIn("検査済み", github.updates[-1])
+        self.assertNotIn("scan completed", github.updates[-1])
 
     def test_scanner_invocation_retains_detection_results_and_validates_hash(self):
         binary = self.output / "program.exe"

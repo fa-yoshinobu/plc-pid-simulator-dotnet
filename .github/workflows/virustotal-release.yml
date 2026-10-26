@@ -1,4 +1,4 @@
-name: Check published release with VirusTotal
+name: Scan release with VirusTotal
 
 on:
   release:
@@ -54,7 +54,7 @@ jobs:
           python -m unittest discover -s tests/release -v
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Check published executable and update release notes
+      - name: Scan published executables and update release notes
         env:
           GH_TOKEN: ${{ github.token }}
           VIRUSTOTAL_API_KEY: ${{ secrets.VT_API_KEY }}
@@ -62,7 +62,7 @@ jobs:
           python .github/scripts/check_release_virustotal.py --repository "$env:REPO" --release-tag "$env:TAG" --output-dir artifacts/virustotal
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Preserve scan reports only
+      - name: Upload scan reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
