@@ -63,9 +63,9 @@ Windows 10 / 11（64ビット）で動作します。.NETの追加インスト�
 
 [MIT License](LICENSE)
 
-## Release distribution (next release)
+## Release distribution
 
-The fixed-name ZIP and checksum links below become available with the next standard release. Existing release assets and the download links above remain unchanged.
+The fixed-name ZIP and checksum links below are available for the current release. Older releases retain their original assets.
 
 - [Latest Windows x64 ZIP](https://github.com/fa-yoshinobu/plc-pid-simulator-dotnet/releases/latest/download/PidSimulator-win-x64.zip)
 - [ZIP SHA-256 checksum](https://github.com/fa-yoshinobu/plc-pid-simulator-dotnet/releases/latest/download/PidSimulator-win-x64.zip.sha256)

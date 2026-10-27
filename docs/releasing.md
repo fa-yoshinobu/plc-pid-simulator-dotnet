@@ -48,4 +48,4 @@ VirusTotalへの通常の送信は公開サンプルの投稿です。検査結�
 
 [VirusTotal API v3のファイル送信](https://docs.virustotal.com/reference/files-scan)を使用します。32 MBを超えるEXEは[大容量ファイル用のアップロードURL](https://docs.virustotal.com/reference/files-upload-url)を取得して送信し、この経路の上限は650 MBです。自己完結EXEは32 MBを超えるため、大容量送信に対応しています。APIキーの利用枠や契約による制約も適用されます。
 
-新しい固定名ZIPとSHA-256は次回リリースから適用します。旧リリースのAssetは変更しません。本文更新ワークフローも新形式のAssetがあるリリースだけを対象にします。
+固定名ZIPとSHA-256による配布を適用済みです。旧リリースのAssetは変更しません。本文更新ワークフローも新形式のAssetがあるリリースだけを対象にします。
