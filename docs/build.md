@@ -5,7 +5,7 @@
 ## 必要な環境
 
 - Windows 10 / 11
-- [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - Git（以下のソース取得コマンドを使う場合）
 
 ## ソースの取得
