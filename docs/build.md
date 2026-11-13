@@ -65,7 +65,9 @@ dotnet test tests/PidSimulator.App.Tests -c Release
 
 `DEMO.psim` は通常のビルドでも実行ファイルと同じフォルダにコピーされます。
 
-現在の依存関係では、ビルド時に `SkiaSharp.Views.WPF` の互換性に関する `NU1701` 警告が出ます。
+描画系の直接参照は、実際に使用する機能、または推移依存の版合わせのために残しています。理由はアプリのcsprojの各PackageReferenceコメントに記載しています。現行の `SkiaSharp.Views.WPF` では従来の `NU1701` は解消しており、警告の抑制は追加していません。
+
+自己完結EXEに同梱する.NET/Windows Desktopランタイムは、アプリcsprojの2つの `FrameworkReference` の `RuntimeFrameworkVersion` 属性で固定しています。毎週の更新確認と変更手順は[リリース手順](releasing.md#同梱ランタイムの更新確認)を参照してください。
 
 ## ソースの構成
 

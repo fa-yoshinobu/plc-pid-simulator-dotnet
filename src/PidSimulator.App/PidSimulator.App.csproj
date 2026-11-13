@@ -7,17 +7,24 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- 自己完結EXEの再現性のため固定する。check-runtime-update.ymlで公式の修正版を毎週確認する。 -->
     <FrameworkReference Update="Microsoft.NETCore.App" RuntimeFrameworkVersion="10.0.14" />
     <FrameworkReference Update="Microsoft.WindowsDesktop.App.WPF" RuntimeFrameworkVersion="10.0.14" />
+    <!-- ViewModelのObservableProperty/RelayCommand生成に使用する。 -->
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <!-- TrendViewのWPFトレンド表示・軸操作に使用する。 -->
     <PackageReference Include="ScottPlot.WPF" Version="5.1.59" />
-    <!-- Keep the Windows rendering stack current instead of ScottPlot's older minimum. -->
+    <!-- ScottPlotのWPF描画基盤。古い互換性資産によるNU1701を避ける現行版を明示する。 -->
     <PackageReference Include="SkiaSharp.Views.WPF" Version="4.155.0" />
+    <!-- ScottPlot/SkiaSharpの文字組み描画依存をSkiaSharp 4系と同じ版へ揃える。 -->
     <PackageReference Include="SkiaSharp.HarfBuzz" Version="4.155.0" />
-    <!-- Align transitive native assets with the managed renderer on every platform. -->
+    <!-- Windowsで使用するためではなく、ScottPlotの推移依存にあるLinux資産もSkiaSharp管理側と同じ版へ揃える。win-x64配布対象は変更しない。 -->
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.155.0" />
+    <!-- 推移依存のLinux資産をHarfBuzzSharp管理側の版へ揃え、古いネイティブ依存の残留を防ぐ。 -->
     <PackageReference Include="HarfBuzzSharp.NativeAssets.Linux" Version="14.4.0" />
+    <!-- ScottPlot.WPFのOpenGL用WPFホストの推移依存を現行版に固定する。 -->
     <PackageReference Include="OpenTK.GLWpfControl" Version="4.3.6" />
+    <!-- OpenTK側のGLFWネイティブ依存を現行版へ揃える。 -->
     <PackageReference Include="OpenTK.redist.glfw" Version="3.5.1.71" />
   </ItemGroup>
 
