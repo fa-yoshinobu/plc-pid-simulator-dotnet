@@ -36,6 +36,7 @@ public sealed partial class RangeRowViewModel : ObservableObject
         _engMin = r.EngMin;
         _engMax = r.EngMax;
         _unit = r.Unit;
+        _extensionData = r.ExtensionData;
     }
 
     public string Label { get; }
@@ -48,7 +49,8 @@ public sealed partial class RangeRowViewModel : ObservableObject
     [ObservableProperty, NotifyPropertyChangedFor(nameof(Preview), nameof(IsValid))] private double _engMax;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(Preview))] private string _unit;
 
-    public RangeDef ToRange() => new() { RawMin = RawMin, RawMax = RawMax, EngMin = EngMin, EngMax = EngMax, Unit = Unit.Trim() };
+    private readonly Dictionary<string, System.Text.Json.JsonElement>? _extensionData;
+    public RangeDef ToRange() => new() { RawMin = RawMin, RawMax = RawMax, EngMin = EngMin, EngMax = EngMax, Unit = Unit.Trim(), ExtensionData = _extensionData };
     public bool IsValid => ToRange().IsValid;
 
     public string Preview
@@ -316,6 +318,7 @@ public sealed partial class RegistrationViewModel : ObservableObject
 
     public TargetConfig BuildConfig() => new()
     {
+        ExtensionData = _source.ExtensionData,
         Name = Name.Trim(),
         Description = Description.Trim(),
         Kind = SelectedModel.Kind,
@@ -325,7 +328,7 @@ public sealed partial class RegistrationViewModel : ObservableObject
         SpAddress = SpAddress.Trim().ToUpperInvariant(),
         UseSp = UseSp,
         DataType = DataType,
-        MvRange = MvOnOff ? new RangeDef { RawMax = 1, EngMax = 100, Unit = "%" } : MvRange.ToRange(),
+        MvRange = MvOnOff ? new RangeDef { RawMax = 1, EngMax = 100, Unit = "%", ExtensionData = MvRange.ToRange().ExtensionData } : MvRange.ToRange(),
         PvRange = PvRange.ToRange(),
         SpRange = SpRange.ToRange(),
         InitialPv = InitialPv,

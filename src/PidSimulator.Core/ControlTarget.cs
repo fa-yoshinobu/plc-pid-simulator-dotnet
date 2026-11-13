@@ -378,12 +378,15 @@ public sealed class ControlTarget
         return t;
     }
 
+    private Dictionary<string, System.Text.Json.JsonElement>? _projectExtensionData;
+
     public TargetConfig ToConfig()
     {
         lock (Sync)
         {
             return new TargetConfig
             {
+                ExtensionData = _projectExtensionData,
                 Name = Name, Description = Description, Kind = Kind,
                 MvAddress = MvAddress, MvOnOff = MvOnOff, PvAddress = PvAddress, SpAddress = SpAddress, UseSp = UseSp,
                 DataType = DataType,
@@ -410,6 +413,7 @@ public sealed class ControlTarget
             double previewPercent = EngineeringUnits.MvToPercent(previousMvRange, PreviewMv);
             double forcePercent = EngineeringUnits.MvToPercent(previousMvRange, Forces[ForceKey.Mv].Value);
             Name = c.Name.Trim();
+            _projectExtensionData = c.ExtensionData;
             Description = c.Description.Trim();
             MvAddress = c.MvAddress.Trim().ToUpperInvariant();
             MvOnOff = c.MvOnOff;
@@ -417,7 +421,7 @@ public sealed class ControlTarget
             SpAddress = c.SpAddress.Trim().ToUpperInvariant();
             UseSp = c.UseSp;
             DataType = c.DataType;
-            MvRange = c.MvOnOff ? new RangeDef { RawMax = 1, EngMax = 100, Unit = "%" } : c.MvRange.Clone();
+            MvRange = c.MvOnOff ? new RangeDef { RawMax = 1, EngMax = 100, Unit = "%", ExtensionData = c.MvRange.ExtensionData } : c.MvRange.Clone();
             PvRange = c.PvRange.Clone();
             SpRange = c.SpRange.Clone();
             InitialPv = c.InitialPv;

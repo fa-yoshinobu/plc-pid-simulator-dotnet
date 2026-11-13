@@ -136,7 +136,27 @@ public sealed partial class DetailViewModel : ObservableObject
         }
 
         string tag = string.Concat(t.Name.Split(' ')[0].Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch));
-        string folder = Main.DataSettings.CsvFolder;
+        string folder = Main.DataSettings.GetCsvFolder();
+        if (string.IsNullOrWhiteSpace(Main.DataSettings.CsvFolder))
+        {
+            try { Directory.CreateDirectory(folder); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                App.Diagnostics.Write("既定のCSV保存先を作成できません", ex);
+            }
+        }
+        if (!DataSettings.CanWriteCsvFolder(folder))
+        {
+            string fallback = DataSettings.DefaultCsvFolder;
+            if (!Dialogs.Confirm("CSVの保存先を確認", $"設定した保存先を利用できません。\n{folder}\n\n既定の場所を初期候補にして、保存先を選び直しますか？\n{fallback}", "保存先を選び直す"))
+                return;
+            try { Directory.CreateDirectory(fallback); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                App.Diagnostics.Write("既定のCSV保存先を作成できません", ex);
+            }
+            folder = DataSettings.CanWriteCsvFolder(fallback) ? fallback : "";
+        }
         var dlg = new SaveFileDialog
         {
             Title = "試験データをCSVで保存",

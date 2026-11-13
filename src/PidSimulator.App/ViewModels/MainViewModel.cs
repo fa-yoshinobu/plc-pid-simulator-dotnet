@@ -23,6 +23,7 @@ public sealed partial class MainViewModel : ObservableObject
     private DateTime _toastUntil;
     private int _tick;
     private CancellationTokenSource? _startAllCts;
+    private ProjectDocument _loadedDocument = new();
 
     public MainViewModel(SimulationEngine engine, DummyPlc dummy, string projectName)
     {
@@ -492,13 +493,7 @@ public sealed partial class MainViewModel : ObservableObject
     private bool WriteProject(string path)
     {
         string name = Path.GetFileNameWithoutExtension(path);
-        var doc = new ProjectDocument
-        {
-            Name = name,
-            Plc = PlcSettings,
-            Data = DataSettings,
-            Targets = Engine.Targets.Select(t => t.ToConfig()).ToList(),
-        };
+        var doc = SnapshotProject(name);
         try
         {
             ProjectSerializer.Save(path, doc);
@@ -520,18 +515,15 @@ public sealed partial class MainViewModel : ObservableObject
     public string? SaveRecovery()
     {
         if (!IsDirty) return null;
-        var document = new ProjectDocument
-        {
-            Name = ProjectName,
-            Plc = PlcSettings,
-            Data = DataSettings,
-            Targets = Engine.Targets.Select(t => t.ToConfig()).ToList(),
-        };
+        var document = SnapshotProject(ProjectName);
         string directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "PidSimulator", "recovery");
         return ProjectRecovery.Save(document, ProjectPath, directory,
             error => App.Diagnostics.Write("元の場所への回復保存失敗", error));
     }
+
+    private ProjectDocument SnapshotProject(string name) => _loadedDocument.Snapshot(
+        name, PlcSettings, DataSettings, Engine.Targets.Select(t => t.ToConfig()));
 
     private void LoadDocument(ProjectDocument doc, string? path)
     {
@@ -541,6 +533,7 @@ public sealed partial class MainViewModel : ObservableObject
         Engine.Clear();
         Dummy.ClearLoops(resetState: true);
         Targets.Clear();
+        _loadedDocument = doc;
         DataSettings = doc.Data;
         Engine.SetTrendRetention(DataSettings.TrendMinutes);
         ApplyPlcSettings(doc.Plc, force: true);

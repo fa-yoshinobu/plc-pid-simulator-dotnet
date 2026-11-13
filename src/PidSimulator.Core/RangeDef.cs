@@ -5,6 +5,9 @@ namespace PidSimulator.Core;
 /// <summary>PLC RAW値と工業値のレンジ・スケーリング（仕様 §5.3）</summary>
 public sealed class RangeDef
 {
+    [JsonExtensionData]
+    public Dictionary<string, System.Text.Json.JsonElement>? ExtensionData { get; set; }
+
     public double RawMin { get; set; }
     public double RawMax { get; set; } = 4000;
     public double EngMin { get; set; }

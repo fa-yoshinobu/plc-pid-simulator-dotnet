@@ -1,10 +1,16 @@
 ﻿using PidSimulator.Core.Models;
 
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace PidSimulator.Core.Project;
 
 /// <summary>制御対象1件の登録内容（仕様 §5）。登録ウィザードとプロジェクトファイルで共通に使う。</summary>
 public sealed class TargetConfig
 {
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
+
     public string Name { get; set; } = "";
     public string Description { get; set; } = "";
     public ModelKind Kind { get; set; }
@@ -64,6 +70,9 @@ public enum PlcMode { Dummy, Slmp, HostLink }
 /// <summary>PLC接続設定（仕様 §24）。Profile は通信ライブラリの正規名（例: melsec:iq-r、keyence:kv-8000）で保存する。</summary>
 public sealed class PlcSettings
 {
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
+
     public PlcMode Mode { get; set; } = PlcMode.Dummy;
     public string Profile { get; set; } = "melsec:iq-r";
     public string Host { get; set; } = "192.168.3.39";
@@ -127,10 +136,54 @@ public sealed class PlcSettings
 
 public sealed class DataSettings
 {
-    public string CsvFolder { get; set; } =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "PidSimulator", "records");
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
+
+    // Empty means this user's default, so project files do not store a profile path.
+    public string CsvFolder { get; set; } = "";
     public int TrendMinutes { get; set; } = TrendBuffer.DefaultRetentionMinutes;
     public bool ConfirmParamChangeWhileRunning { get; set; } = true;
+
+    public static string DefaultCsvFolder => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "PidSimulator", "records");
+
+    public string GetCsvFolder(string? documentsFolder = null) => string.IsNullOrWhiteSpace(CsvFolder)
+        ? documentsFolder == null ? DefaultCsvFolder : Path.Combine(documentsFolder, "PidSimulator", "records")
+        : CsvFolder;
+
+    public static string PortableCsvFolder(string? folder)
+    {
+        if (string.IsNullOrWhiteSpace(folder)) return "";
+        folder = folder.Trim();
+        try
+        {
+            if (string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder)),
+                Path.TrimEndingDirectorySeparator(Path.GetFullPath(DefaultCsvFolder)), StringComparison.OrdinalIgnoreCase))
+                return "";
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return folder; // Keep invalid explicit paths so CSV export can explain and offer another location.
+        }
+        return folder;
+    }
+
+    public static bool CanWriteCsvFolder(string folder)
+    {
+        if (!Directory.Exists(folder)) return false;
+        try
+        {
+            using var probe = new FileStream(Path.Combine(folder, $".pid-write-{Guid.NewGuid():N}.tmp"),
+                FileMode.CreateNew, FileAccess.Write, FileShare.None, 1, FileOptions.DeleteOnClose);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    public DataSettings Clone() => (DataSettings)MemberwiseClone();
 }
 
 /// <summary>設備構成一式（仕様 §13）。*.psim として JSON で保存する。</summary>
@@ -138,10 +191,26 @@ public sealed class ProjectDocument
 {
     public const int CurrentFormat = 2;
 
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
+
     [System.Text.Json.Serialization.JsonRequired]
     public int FormatVersion { get; set; } = CurrentFormat;
     public string Name { get; set; } = "新規プロジェクト";
     public PlcSettings Plc { get; set; } = new();
     public DataSettings Data { get; set; } = new();
     public List<TargetConfig> Targets { get; set; } = [];
+
+    /// <summary>画面の現在値と、読み込んだプロジェクトの未知の項目を合わせて保存する。</summary>
+    public ProjectDocument Snapshot(string name, PlcSettings plc, DataSettings data, IEnumerable<TargetConfig> targets)
+    {
+        var savedData = data.Clone();
+        savedData.CsvFolder = DataSettings.PortableCsvFolder(data.CsvFolder);
+        return new ProjectDocument
+        {
+            FormatVersion = FormatVersion, ExtensionData = ExtensionData,
+            Name = name, Plc = plc.Clone(), Data = savedData,
+            Targets = targets.Select(t => t.Clone()).ToList(),
+        };
+    }
 }

@@ -23,14 +23,16 @@ public static class ProjectSerializer
         Converters = { new JsonStringEnumConverter(allowIntegerValues: false) },
     };
 
-    public static string ToJson(ProjectDocument doc) => JsonSerializer.Serialize(doc, Options);
+    public static string ToJson(ProjectDocument doc) => JsonSerializer.Serialize(
+        doc.Snapshot(doc.Name, doc.Plc, doc.Data, doc.Targets), Options);
 
     public static ProjectDocument FromJson(string json)
     {
-        var doc = JsonSerializer.Deserialize<ProjectDocument>(json, Options)
+        using var source = JsonDocument.Parse(json);
+        var current = ConvertToCurrentFormat(source.RootElement);
+        var doc = current.Deserialize<ProjectDocument>(Options)
                   ?? throw new InvalidDataException("プロジェクトファイルが空です。");
-        if (doc.FormatVersion != ProjectDocument.CurrentFormat)
-            throw new InvalidDataException($"プロジェクト形式 {doc.FormatVersion} には対応していません。このアプリで使用できる形式は {ProjectDocument.CurrentFormat} です。");
+        doc.Data.CsvFolder = DataSettings.PortableCsvFolder(doc.Data.CsvFolder);
         if (doc.Data.TrendMinutes is < TrendBuffer.MinRetentionMinutes or > TrendBuffer.MaxRetentionMinutes)
             throw new InvalidDataException($"トレンド保持時間は {TrendBuffer.MinRetentionMinutes}～{TrendBuffer.MaxRetentionMinutes} 分で指定してください。");
         foreach (var t in doc.Targets)
@@ -50,6 +52,27 @@ public static class ProjectSerializer
         }
         return doc;
     }
+
+    private static JsonElement ConvertToCurrentFormat(JsonElement document)
+    {
+        if (document.ValueKind != JsonValueKind.Object
+            || !document.TryGetProperty(nameof(ProjectDocument.FormatVersion), out var value)
+            || value.ValueKind != JsonValueKind.Number
+            || !value.TryGetInt32(out int format))
+            throw new JsonException("プロジェクトの形式番号（FormatVersion）が必要です。");
+        if (format > ProjectDocument.CurrentFormat)
+            throw new InvalidDataException("新しい版のアプリで保存されたファイルです。アプリを更新してから開いてください。");
+        while (format < ProjectDocument.CurrentFormat)
+        {
+            document = ConvertOneVersion(document, format);
+            format++;
+        }
+        return document;
+    }
+
+    // Published projects start at format 2; add each N -> N+1 conversion here when a new format is introduced.
+    private static JsonElement ConvertOneVersion(JsonElement document, int format) =>
+        throw new InvalidDataException($"プロジェクト形式 {format} には対応していません。このアプリで使用できる形式は {ProjectDocument.CurrentFormat} です。");
 
     /// <summary>一時ファイルに書いてから置き換える（書込み途中で壊れないように）</summary>
     public static void Save(string path, ProjectDocument doc)

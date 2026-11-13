@@ -28,7 +28,8 @@ public sealed partial class SettingsViewModel : ObservableObject
             connection.Mode = connection.Profile.StartsWith("keyence:", StringComparison.Ordinal) ? PlcMode.HostLink : PlcMode.Slmp;
         _connections[connection.Mode] = connection;
         LoadConnection(connection);
-        _csvFolder = data.CsvFolder;
+        _originalData = data.Clone();
+        _csvFolder = data.GetCsvFolder();
         _confirmParamChange = data.ConfirmParamChangeWhileRunning;
         _trendMinutesText = data.TrendMinutes.ToString();
     }
@@ -36,6 +37,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     public IReadOnlyList<ProfileItem> Profiles => _profiles;
     private IReadOnlyList<ProfileItem> _profiles = [];
     private readonly Dictionary<PlcMode, PlcSettings> _connections = [];
+    private readonly DataSettings _originalData;
     private bool _loadingConnection;
     public int[] CommCycleOptions { get; } = [50, 100, 200, 500, 1000];
     public IReadOnlyList<SlmpCpuTargetItem> SlmpCpuTargets { get; } = new[]
@@ -268,7 +270,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         plc.SlmpModuleIo = c.SlmpModuleIo;
         plc.UseGxSimulator = c.UseGxSimulator;
         plc.UseKvSimulator = c.UseKvSimulator;
-        data.CsvFolder = _resultCsv ?? CsvFolder.Trim();
+        data.ExtensionData = _originalData.ExtensionData;
+        data.CsvFolder = DataSettings.PortableCsvFolder(_resultCsv ?? CsvFolder);
         data.ConfirmParamChangeWhileRunning = _result != null ? _resultConfirm : ConfirmParamChange;
         data.TrendMinutes = _result != null ? _resultTrendMinutes : int.Parse(TrendMinutesText);
     }
