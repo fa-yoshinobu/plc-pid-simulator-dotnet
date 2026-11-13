@@ -18,7 +18,7 @@ Windows 10 / 11（64ビット）で動作します。.NETの追加インスト�
 
 **自分の試験を作る場合**は、空の初期画面から次の順に設定します。
 
-1. **通信設定**：ダミーPLC、MELSEC PLC（SLMP）、KEYENCE PLC（Host Link）から接続先を設定します。GX Simulator 3・KV STUDIOシミュレーターにも接続できます。
+1. **通信設定**：ダミーPLC、MELSEC PLC（SLMP）、KEYENCE PLC（Host Link）、Modbus TCPから接続先を設定します。GX Simulator 3・KV STUDIOシミュレーターにも接続できます。
 2. **制御対象を登録**：モデル、名称、レンジ、PLCのMV・PV・SPアドレスを設定します。
 3. **条件から計算**：対象の「パラメータ」で、水量・温度・流量などの設備条件からモデルを設定します。
 4. **全制御開始**：PLCと接続して試験を開始し、トレンドで応答を確認します。

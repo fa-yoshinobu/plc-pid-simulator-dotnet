@@ -10,11 +10,67 @@ using PidSimulator.Core;
 using PidSimulator.Core.Models;
 using PidSimulator.Core.Plc;
 using PidSimulator.Core.Project;
+using PidSimulator.Plc.Modbus;
 
 namespace PidSimulator.App.Tests;
 
 public class MainViewModelTests
 {
+    [Fact]
+    public void ModbusSettingsSelectTheRealClientAndSurviveProjectSaveAndOpen() => OnSta(() =>
+    {
+        using var session = new Session(useRealClients: true);
+        session.Ui.SettingsEdit = settings =>
+        {
+            settings.Mode = PlcMode.ModbusTcp;
+            settings.Host = "127.0.0.1";
+            settings.ModbusUnitId = 7;
+            settings.ModbusWordOrder = ModbusWordOrder.LowWordFirst;
+            settings.ModbusTestAddress = "DI3";
+        };
+        session.Main.OpenSettingsCommand.Execute("0");
+        Assert.IsType<ModbusPlcClient>(session.Engine.Plc);
+        session.Main.RegisterCommand.Execute(null);
+        var target = Assert.Single(session.Main.Targets);
+        Assert.Equal("IR0", target.MvAddress);
+        Assert.Equal("HR0", target.PvAddress);
+        Assert.Equal("IR1", target.Model.SpAddress);
+        session.Ui.SavePath = session.Path("modbus.psim");
+        session.Main.SaveProjectCommand.Execute(null);
+        session.Main.NewProjectCommand.Execute(null);
+        session.Ui.OpenPath = session.Ui.SavePath;
+        session.Main.OpenProjectCommand.Execute(null);
+        Assert.IsType<ModbusPlcClient>(session.Engine.Plc);
+        Assert.Equal(PlcMode.ModbusTcp, session.Main.PlcSettings.Mode);
+        Assert.Equal(7, session.Main.PlcSettings.ModbusUnitId);
+        Assert.Equal(ModbusWordOrder.LowWordFirst, session.Main.PlcSettings.ModbusWordOrder);
+        Assert.Equal("DI3", session.Main.PlcSettings.ModbusTestAddress);
+        Assert.Equal("HR0", Assert.Single(session.Main.Targets).PvAddress);
+        Assert.Empty(session.Ui.Errors);
+    });
+
+    [Fact]
+    public void ModbusDuplicateReservesBothWordsOfThirtyTwoBitRegisters() => OnSta(() =>
+    {
+        using var session = new Session { Factory = _ => new FakePlc() };
+        Assert.True(session.Main.ApplyPlcSettings(new PlcSettings
+        {
+            Mode = PlcMode.ModbusTcp, Host = "127.0.0.1", Port = 502,
+        }, force: false));
+        session.Ui.TargetEdit = target => { target.DataType = "FLOAT32"; target.SpAddress = "IR2"; };
+        session.Main.RegisterCommand.Execute(null);
+        var first = Assert.Single(session.Main.Targets);
+        session.Ui.TargetEdit = target => target.Name = "LIC-102";
+        session.Main.Duplicate(first);
+        Assert.Equal(2, session.Main.Targets.Count);
+        var copy = session.Main.Targets[1];
+        Assert.Equal("IR4", copy.MvAddress);
+        Assert.Equal("HR2", copy.PvAddress);
+        Assert.Equal("IR6", copy.Model.SpAddress);
+        Assert.Equal("FLOAT32", copy.DataType);
+        Assert.Empty(session.Ui.Errors);
+    });
+
     [Fact]
     public void EventRetentionWarnsOnceBeforeDeletingAndKeepsTheSameUiLimit() => OnSta(() =>
     {
@@ -325,12 +381,12 @@ public class MainViewModelTests
         public SimulationEngine Engine { get; }
         public MainViewModel Main { get; }
         public Func<PlcSettings, IPlcClient>? Factory { get; set; }
-        public Session()
+        public Session(bool useRealClients = false)
         {
             Engine = new SimulationEngine(Dummy);
-            Main = new MainViewModel(Engine, Dummy, "test", Ui,
-                settings => settings.Mode == PlcMode.Dummy ? Dummy : Factory?.Invoke(settings) ?? throw new InvalidOperationException("Unexpected PLC request"),
-                startUiTimer: false);
+            Func<PlcSettings, IPlcClient>? factory = useRealClients ? null
+                : settings => settings.Mode == PlcMode.Dummy ? Dummy : Factory?.Invoke(settings) ?? throw new InvalidOperationException("Unexpected PLC request");
+            Main = new MainViewModel(Engine, Dummy, "test", Ui, factory, startUiTimer: false);
         }
         public string Path(string name) => System.IO.Path.Combine(_directory, name);
         public void Dispose() { Engine.Dispose(); Directory.Delete(_directory, recursive: true); }

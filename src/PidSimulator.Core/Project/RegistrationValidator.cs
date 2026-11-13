@@ -14,9 +14,12 @@ public static partial class RegistrationValidator
     [GeneratedRegex(@"^[A-Za-z]{1,3}[0-9][0-9A-Fa-f]*(\.(?:[0-9]|1[0-5]|[A-Fa-f]))?$")]
     private static partial Regex AddressPattern();
 
-    public static bool IsAddress(string s, PlcSettings? plc = null) => plc?.Mode == PlcMode.HostLink
-        ? HostLinkAddressRules.TryParse(s, plc.Profile, out _)
-        : AddressPattern().IsMatch(s ?? "");
+    public static bool IsAddress(string s, PlcSettings? plc = null) => plc?.Mode switch
+    {
+        PlcMode.HostLink => HostLinkAddressRules.TryParse(s, plc.Profile, out _),
+        PlcMode.ModbusTcp => ModbusAddressRules.TryParse(s, out _),
+        _ => AddressPattern().IsMatch(s ?? ""),
+    };
 
     private static bool Same(string a, string b) => string.Equals(a?.Trim(), b?.Trim(), StringComparison.OrdinalIgnoreCase);
 
@@ -30,6 +33,12 @@ public static partial class RegistrationValidator
     private static bool TryAddressSpan(string address, string dataType, PlcSettings? plc, out AddressSpan span)
     {
         span = default;
+        if (plc?.Mode == PlcMode.ModbusTcp)
+        {
+            if (!ModbusAddressRules.TryResolve(address, dataType, false, out var parsed)) return false;
+            span = new(parsed.Device, parsed.StartBit, parsed.StartBit + (uint)parsed.BitCount(dataType));
+            return true;
+        }
         if (plc?.Mode == PlcMode.HostLink)
         {
             if (!HostLinkAddressRules.TryResolve(address, dataType, plc.Profile, out var parsed)) return false;
@@ -69,11 +78,14 @@ public static partial class RegistrationValidator
         var o = others.ToList();
         string mvType = c.MvOnOff ? "BIT" : c.DataType;
 
+        if (plc is not null && !plc.TryValidateModbus(out string plcError)) list.Add(new(CheckLevel.Block, plcError));
         if (string.IsNullOrWhiteSpace(c.Name)) list.Add(new(CheckLevel.Block, "制御名称が未入力です"));
         if (!EngineeringUnits.IsSupportedMvUnit(c.Kind, c.MvRange.Unit, c.MvOnOff))
             list.Add(new(CheckLevel.Block, $"このモデル・制御方式のMV単位は {string.Join("・", EngineeringUnits.GetMvUnits(c.Kind, c.MvOnOff))} から選んでください"));
         if (c.MvOnOff && !PlcBitAddress.IsValid(c.MvAddress, plc))
-            list.Add(new(CheckLevel.Block, plc?.Mode == PlcMode.HostLink && !plc.Profile.EndsWith("-xym", StringComparison.Ordinal)
+            list.Add(new(CheckLevel.Block, plc?.Mode == PlcMode.ModbusTcp
+                ? "ON/OFFのMVはC0・DI0、またはHR0.0～HR0.15・IR0.0～IR0.15のレジスタ内ビットを指定してください"
+                : plc?.Mode == PlcMode.HostLink && !plc.Profile.EndsWith("-xym", StringComparison.Ordinal)
                 ? "ON/OFFのMVはMR100・R100などのリレー、またはDM1.0～DM1.15のワード内ビットを指定してください"
                 : "ON/OFFのMVはM100・Y10などのビットデバイス、またはD1.0～D1.15のワード内ビットを指定してください"));
         foreach (var (label, r) in new[] { ("MV", c.MvRange), ("PV", c.PvRange), ("SP", c.SpRange) })
@@ -98,7 +110,12 @@ public static partial class RegistrationValidator
 
         foreach (var (label, addr, type) in new[] { ("MV", c.MvAddress, mvType), ("PV", c.PvAddress, c.DataType), ("SP", c.UseSp ? c.SpAddress : "", c.DataType) })
         {
-            if (!string.IsNullOrWhiteSpace(addr) && plc?.Mode == PlcMode.HostLink
+            if (!string.IsNullOrWhiteSpace(addr) && plc?.Mode == PlcMode.ModbusTcp
+                && !ModbusAddressRules.TryResolve(addr, type, label == "PV", out _))
+                list.Add(new(CheckLevel.Block, label == "PV"
+                    ? $"PVアドレス「{addr}」には書込み可能なHolding Register（HR0など）を指定してください。FLOAT32・INT32は2レジスタを使用します。"
+                    : $"{label}アドレス「{addr}」はModbusの{type}で読めません。数値はHR・IR、ON/OFFはC・DIまたはレジスタ内ビットを指定してください。番号は0～65535で、FLOAT32・INT32は2レジスタを使用します。"));
+            else if (!string.IsNullOrWhiteSpace(addr) && plc?.Mode == PlcMode.HostLink
                 && !HostLinkAddressRules.TryResolve(addr, type, plc.Profile, out _))
                 list.Add(new(CheckLevel.Block, $"{label}アドレス「{addr}」は選択したKEYENCE機種・データ型で使用できません。数値信号はワードデバイス、ON/OFF信号はリレーまたはワード内ビットを指定してください。"));
             else if (!string.IsNullOrWhiteSpace(addr) && !IsAddress(addr, plc))

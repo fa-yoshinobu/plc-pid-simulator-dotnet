@@ -12,7 +12,7 @@ internal sealed class TargetRegistrationWorkflow(MainViewModel main, IUserIntera
     public void Register()
     {
         var cfg = TargetConfig.Default(ModelKind.Level);
-        (cfg.MvAddress, cfg.PvAddress, cfg.SpAddress) = NextAddresses();
+        (cfg.MvAddress, cfg.PvAddress, cfg.SpAddress) = NextAddresses(cfg.DataType, cfg.MvOnOff);
         var vm = new RegistrationViewModel(RegistrationMode.New, cfg, main.Engine.Targets, main.Engine.Plc, plcSettings: main.PlcSettings);
         if (interaction.EditTarget(vm) is not { } result) return;
         var t = AddTarget(result, null);
@@ -51,7 +51,7 @@ internal sealed class TargetRegistrationWorkflow(MainViewModel main, IUserIntera
     {
         var cfg = t.Model.ToConfig();
         cfg.Name = $"{t.Name} のコピー";
-        (cfg.MvAddress, cfg.PvAddress, cfg.SpAddress) = NextAddresses();
+        (cfg.MvAddress, cfg.PvAddress, cfg.SpAddress) = NextAddresses(cfg.DataType, cfg.MvOnOff);
         var vm = new RegistrationViewModel(RegistrationMode.Duplicate, cfg, main.Engine.Targets, main.Engine.Plc, t.Name, main.PlcSettings);
         if (interaction.EditTarget(vm) is not { } result) return;
         var added = AddTarget(result, $"{t.Name} から複製して登録");
@@ -111,9 +111,15 @@ internal sealed class TargetRegistrationWorkflow(MainViewModel main, IUserIntera
         foreach (var (t, sp) in sps) main.Dummy.AddLoop(DummyPidLoop.For(t, sp));
     }
 
-    /// <summary>選択中の通信方式に合うワードデバイスで、既存アドレスの次の10番台を提案する。</summary>
-    private (string mv, string pv, string sp) NextAddresses()
+    /// <summary>選択中の通信方式に合うワードデバイスで、既存対象と重ならないアドレスを提案する。</summary>
+    private (string mv, string pv, string sp) NextAddresses(string dataType, bool mvOnOff)
     {
+        if (main.PlcSettings.Mode == PlcMode.ModbusTcp)
+        {
+            int input = NextModbusRegister("IR"), holding = NextModbusRegister("HR");
+            int mvWords = !mvOnOff && dataType is ("INT32" or "FLOAT32") ? 2 : 1;
+            return ($"IR{input}{(mvOnOff ? ".0" : "")}", $"HR{holding}", $"IR{input + mvWords}");
+        }
         string prefix = main.PlcSettings.Mode == PlcMode.HostLink && !main.PlcSettings.Profile.EndsWith("-xym", StringComparison.Ordinal) ? "DM" : "D";
         int max = main.Engine.Targets
             .SelectMany(t => new[] { t.MvAddress, t.PvAddress, t.SpAddress })
@@ -124,6 +130,22 @@ internal sealed class TargetRegistrationWorkflow(MainViewModel main, IUserIntera
             .Max();
         int b = (max / 10 + 1) * 10;
         return ($"{prefix}{b}", $"{prefix}{b + 2}", $"{prefix}{b + 4}"); // FLOAT32 / INT32 は各2ワード使う
+    }
+
+    private int NextModbusRegister(string device)
+    {
+        int next = 0;
+        foreach (var target in main.Engine.Targets)
+        foreach (var (address, type) in new[]
+        {
+            (target.MvAddress, target.MvDataType), (target.PvAddress, target.DataType),
+            (target.UseSp ? target.SpAddress : "", target.DataType),
+        })
+        {
+            if (!ModbusAddressRules.TryParse(address, out var parsed) || parsed.Device != device) continue;
+            next = Math.Max(next, parsed.Number + (type is "INT32" or "FLOAT32" ? 2 : 1));
+        }
+        return next;
     }
 
 }

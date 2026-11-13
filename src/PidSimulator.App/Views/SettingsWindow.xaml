@@ -23,10 +23,13 @@
     </Window.Resources>
     <DockPanel>
         <Border DockPanel.Dock="Bottom" Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="16,10">
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <DockPanel>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Content="キャンセル" IsCancel="True" MinWidth="88"/>
                 <Button Style="{StaticResource BtnPrimary}" Content="保存" Command="{Binding SaveCommand}" IsEnabled="{Binding TrendMinutesValid}" MinWidth="88" Margin="8,0,0,0" IsDefault="True"/>
             </StackPanel>
+            <TextBlock Text="{Binding ValidationError}" TextWrapping="Wrap" Foreground="{StaticResource AlarmBrush}" VerticalAlignment="Center" Margin="0,0,14,0"/>
+            </DockPanel>
         </Border>
         <TabControl Margin="16,14,16,14" SelectedIndex="{Binding SelectedTab}" Padding="18,16">
             <TabItem Header="PLC接続設定">
@@ -41,16 +44,29 @@
                     <RadioButton GroupName="mode" IsChecked="{Binding Mode, Mode=TwoWay, Converter={StaticResource RadioMode}, ConverterParameter=Slmp}" Margin="0,0,0,6">
                         <TextBlock><Run Text="MELSEC PLC（SLMP）" FontWeight="SemiBold"/><Run Text="　実機・GX Simulator 3" Foreground="{StaticResource Ink3Brush}"/></TextBlock>
                     </RadioButton>
-                    <RadioButton GroupName="mode" IsChecked="{Binding Mode, Mode=TwoWay, Converter={StaticResource RadioMode}, ConverterParameter=HostLink}" Margin="0,0,0,14">
+                    <RadioButton GroupName="mode" IsChecked="{Binding Mode, Mode=TwoWay, Converter={StaticResource RadioMode}, ConverterParameter=HostLink}" Margin="0,0,0,6">
                         <TextBlock><Run Text="KEYENCE PLC（Host Link）" FontWeight="SemiBold"/><Run Text="　実機・KV STUDIO Simulator" Foreground="{StaticResource Ink3Brush}"/></TextBlock>
+                    </RadioButton>
+                    <RadioButton GroupName="mode" IsChecked="{Binding Mode, Mode=TwoWay, Converter={StaticResource RadioMode}, ConverterParameter=ModbusTcp}" Margin="0,0,0,14">
+                        <TextBlock><Run Text="Modbus TCP" FontWeight="SemiBold"/><Run Text="　PLC・I/O機器" Foreground="{StaticResource Ink3Brush}"/></TextBlock>
                     </RadioButton>
 
                     <Grid IsEnabled="{Binding UseRealPlc}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition/></Grid.ColumnDefinitions>
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                        <TextBlock Text="PLC機種" Style="{StaticResource L}"/>
-                        <StackPanel Grid.Column="1" Style="{StaticResource Row}">
+                        <TextBlock Text="PLC機種" Style="{StaticResource L}" Visibility="{Binding HasPlcProfile, Converter={StaticResource BoolToVis}}"/>
+                        <StackPanel Grid.Column="1" Style="{StaticResource Row}" Visibility="{Binding HasPlcProfile, Converter={StaticResource BoolToVis}}">
                             <ComboBox Width="280" ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" DisplayMemberPath="DisplayName"/>
+                        </StackPanel>
+                        <TextBlock Text="Unit ID" Style="{StaticResource L}" Visibility="{Binding IsModbus, Converter={StaticResource BoolToVis}}"/>
+                        <StackPanel Grid.Column="1" Style="{StaticResource Row}" Visibility="{Binding IsModbus, Converter={StaticResource BoolToVis}}">
+                            <TextBox Width="100" Text="{Binding ModbusUnitIdText, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBlock Text="0～255" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                        </StackPanel>
+                        <TextBlock Grid.Row="1" Text="32bitワード順" Style="{StaticResource L}" Visibility="{Binding IsModbus, Converter={StaticResource BoolToVis}}"/>
+                        <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,12" Visibility="{Binding IsModbus, Converter={StaticResource BoolToVis}}">
+                            <ComboBox Width="250" HorizontalAlignment="Left" ItemsSource="{Binding ModbusWordOrders}" SelectedValue="{Binding ModbusWordOrder, Mode=TwoWay}" SelectedValuePath="Value" DisplayMemberPath="DisplayName"/>
+                            <TextBlock Text="INT32・FLOAT32の2ワードの並びを機器に合わせます。" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,5,0,0"/>
                         </StackPanel>
                         <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,12" Visibility="{Binding CanUseKvSimulator, Converter={StaticResource BoolToVis}}">
                             <CheckBox IsChecked="{Binding UseKvSimulator}" Content="KV STUDIO Simulator に接続" FontWeight="SemiBold"/>
@@ -67,8 +83,9 @@
                         <TextBlock Grid.Row="3" Text="ポート" Style="{StaticResource L}"/>
                         <StackPanel Grid.Row="3" Grid.Column="1" Style="{StaticResource Row}" IsEnabled="{Binding EndpointEditable}">
                             <TextBox Width="100" Text="{Binding Port}"/>
-                            <RadioButton GroupName="tr" Content="TCP" IsChecked="{Binding UseUdp, Mode=TwoWay, Converter={StaticResource RadioBool}, ConverterParameter=False}" Margin="16,0,0,0" VerticalAlignment="Center"/>
-                            <RadioButton GroupName="tr" Content="UDP" IsChecked="{Binding UseUdp, Mode=TwoWay, Converter={StaticResource RadioBool}, ConverterParameter=True}" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                            <RadioButton GroupName="tr" Content="TCP" IsChecked="{Binding UseUdp, Mode=TwoWay, Converter={StaticResource RadioBool}, ConverterParameter=False}" Margin="16,0,0,0" VerticalAlignment="Center" Visibility="{Binding HasPlcProfile, Converter={StaticResource BoolToVis}}"/>
+                            <RadioButton GroupName="tr" Content="UDP" IsChecked="{Binding UseUdp, Mode=TwoWay, Converter={StaticResource RadioBool}, ConverterParameter=True}" Margin="12,0,0,0" VerticalAlignment="Center" Visibility="{Binding HasPlcProfile, Converter={StaticResource BoolToVis}}"/>
+                            <TextBlock Text="TCP" Style="{StaticResource Hint}" Margin="16,0,0,0" VerticalAlignment="Center" Visibility="{Binding IsModbus, Converter={StaticResource BoolToVis}}"/>
                         </StackPanel>
                         <TextBlock Grid.Row="4" Text="タイムアウト" Style="{StaticResource L}"/>
                         <StackPanel Grid.Row="4" Grid.Column="1" Style="{StaticResource Row}">
@@ -82,6 +99,11 @@
                         <TextBlock Grid.Row="6" Text="接続先CPU" Style="{StaticResource L}" Visibility="{Binding ShowSlmpCpuTarget, Converter={StaticResource BoolToVis}}"/>
                         <StackPanel Grid.Row="6" Grid.Column="1" Style="{StaticResource Row}" Visibility="{Binding ShowSlmpCpuTarget, Converter={StaticResource BoolToVis}}">
                             <ComboBox Width="180" ItemsSource="{Binding SlmpCpuTargets}" SelectedValue="{Binding SlmpModuleIo, Mode=TwoWay}" SelectedValuePath="Value" DisplayMemberPath="DisplayName"/>
+                        </StackPanel>
+                        <TextBlock Grid.Row="6" Text="接続確認アドレス" Style="{StaticResource L}" Visibility="{Binding IsModbus, Converter={StaticResource BoolToVis}}"/>
+                        <StackPanel Grid.Row="6" Grid.Column="1" Margin="0,0,0,12" Visibility="{Binding IsModbus, Converter={StaticResource BoolToVis}}">
+                            <TextBox Width="140" HorizontalAlignment="Left" Text="{Binding ModbusTestAddress, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBlock Text="読み込めるアドレスを指定します。30001 → IR0、40001 → HR0（0起点）。" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,5,0,0"/>
                         </StackPanel>
                         <StackPanel Grid.Row="7" Grid.Column="1">
                             <DockPanel>

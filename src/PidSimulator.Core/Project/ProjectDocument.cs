@@ -1,7 +1,8 @@
-﻿using PidSimulator.Core.Models;
+using PidSimulator.Core.Models;
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using PidSimulator.Core.Plc;
 
 namespace PidSimulator.Core.Project;
 
@@ -65,7 +66,9 @@ public sealed class TargetConfig
     }
 }
 
-public enum PlcMode { Dummy, Slmp, HostLink }
+public enum PlcMode { Dummy, Slmp, HostLink, ModbusTcp }
+
+public enum ModbusWordOrder { HighWordFirst, LowWordFirst }
 
 /// <summary>PLC接続設定（仕様 §24）。Profile は通信ライブラリの正規名（例: melsec:iq-r、keyence:kv-8000）で保存する。</summary>
 public sealed class PlcSettings
@@ -80,6 +83,10 @@ public sealed class PlcSettings
     public bool Udp { get; set; }
     public int TimeoutMs { get; set; } = 1000;
     public int CommCycleMs { get; set; } = 100;
+
+    public int ModbusUnitId { get; set; } = 1;
+    public ModbusWordOrder ModbusWordOrder { get; set; } = ModbusWordOrder.HighWordFirst;
+    public string ModbusTestAddress { get; set; } = "IR0";
 
     /// <summary>SLMPの要求先CPU。ネットワーク番号0・局番FFのまま、Module I/Oだけを指定する。</summary>
     public SlmpModuleIoTarget SlmpModuleIo { get; set; } = SlmpModuleIoTarget.OwnStation;
@@ -108,9 +115,14 @@ public sealed class PlcSettings
     public PlcSettings Effective()
     {
         var c = Clone();
+        if (!TryValidateModbus(out string error)) throw new ArgumentException(error);
         c.UseGxSimulator = IsGxSimulator;
         c.UseKvSimulator = IsKvSimulator;
-        if (IsGxSimulator)
+        if (Mode == PlcMode.ModbusTcp)
+        {
+            c.Udp = false;
+        }
+        else if (IsGxSimulator)
         {
             c.Host = GxSimulatorHost;
             c.Port = GxSimulatorPort;
@@ -127,11 +139,26 @@ public sealed class PlcSettings
 
     public PlcSettings Clone() => (PlcSettings)MemberwiseClone();
 
+    public bool TryValidateModbus(out string error)
+    {
+        error = "";
+        if (Mode != PlcMode.ModbusTcp) return true;
+        if (ModbusUnitId is < 0 or > 255) error = "ModbusのUnit IDは0～255で指定してください。";
+        else if (!Enum.IsDefined(ModbusWordOrder)) error = "Modbusの32ビットワード順が不正です。";
+        else if (!ModbusAddressRules.TryParse(ModbusTestAddress, out _))
+            error = "Modbusの接続テスト読込先はC・DI・HR・IRに0～65535の番号を付けて指定してください（例: IR0）。";
+        return error.Length == 0;
+    }
+
     public bool SameConnection(PlcSettings o) =>
-        Mode == o.Mode && Profile == o.Profile && Host == o.Host && Port == o.Port && Udp == o.Udp
+        Mode == o.Mode && Host == o.Host && Port == o.Port
         && TimeoutMs == o.TimeoutMs && CommCycleMs == o.CommCycleMs
-        && (Mode != PlcMode.Slmp || SlmpModuleIo == o.SlmpModuleIo)
-        && IsGxSimulator == o.IsGxSimulator && IsKvSimulator == o.IsKvSimulator;
+        && (Mode == PlcMode.ModbusTcp
+            ? ModbusUnitId == o.ModbusUnitId && ModbusWordOrder == o.ModbusWordOrder
+                && string.Equals(ModbusTestAddress?.Trim(), o.ModbusTestAddress?.Trim(), StringComparison.OrdinalIgnoreCase)
+            : Profile == o.Profile && Udp == o.Udp
+                && (Mode != PlcMode.Slmp || SlmpModuleIo == o.SlmpModuleIo)
+                && IsGxSimulator == o.IsGxSimulator && IsKvSimulator == o.IsKvSimulator);
 }
 
 public sealed class DataSettings

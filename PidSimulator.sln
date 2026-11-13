@@ -19,6 +19,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PidSimulator.Plc.HostLink",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PidSimulator.App.Tests", "tests\PidSimulator.App.Tests\PidSimulator.App.Tests.csproj", "{41F2FADC-A531-4E27-851B-0DAA6372D4B5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PidSimulator.Plc.Modbus", "src\PidSimulator.Plc.Modbus\PidSimulator.Plc.Modbus.csproj", "{D976B7CA-9A49-4D69-BA4E-0A53B93A6478}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -101,6 +103,18 @@ Global
 		{41F2FADC-A531-4E27-851B-0DAA6372D4B5}.Release|x64.Build.0 = Release|Any CPU
 		{41F2FADC-A531-4E27-851B-0DAA6372D4B5}.Release|x86.ActiveCfg = Release|Any CPU
 		{41F2FADC-A531-4E27-851B-0DAA6372D4B5}.Release|x86.Build.0 = Release|Any CPU
+		{D976B7CA-9A49-4D69-BA4E-0A53B93A6478}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D976B7CA-9A49-4D69-BA4E-0A53B93A6478}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D976B7CA-9A49-4D69-BA4E-0A53B93A6478}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D976B7CA-9A49-4D69-BA4E-0A53B93A6478}.Debug|x64.Build.0 = Debug|Any CPU
+		{D976B7CA-9A49-4D69-BA4E-0A53B93A6478}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D976B7CA-9A49-4D69-BA4E-0A53B93A6478}.Debug|x86.Build.0 = Debug|Any CPU
+		{D976B7CA-9A49-4D69-BA4E-0A53B93A6478}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D976B7CA-9A49-4D69-BA4E-0A53B93A6478}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D976B7CA-9A49-4D69-BA4E-0A53B93A6478}.Release|x64.ActiveCfg = Release|Any CPU
+		{D976B7CA-9A49-4D69-BA4E-0A53B93A6478}.Release|x64.Build.0 = Release|Any CPU
+		{D976B7CA-9A49-4D69-BA4E-0A53B93A6478}.Release|x86.ActiveCfg = Release|Any CPU
+		{D976B7CA-9A49-4D69-BA4E-0A53B93A6478}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -112,5 +126,6 @@ Global
 		{23069974-B3EC-4CED-AF84-EC77A760DE96} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{AB25310C-1A8A-45CE-BE46-A55D16CFCC0D} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{41F2FADC-A531-4E27-851B-0DAA6372D4B5} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{D976B7CA-9A49-4D69-BA4E-0A53B93A6478} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

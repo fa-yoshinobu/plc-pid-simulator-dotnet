@@ -50,7 +50,7 @@
                     </ListView.View>
                 </ListView>
             </TabItem>
-            <TabItem Header="アプリのライセンス">
+            <TabItem Header="ライセンス">
                 <TextBox Text="{Binding LicenseText, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True"
                          Height="Auto" Margin="10" Padding="8" TextWrapping="Wrap"
                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"/>

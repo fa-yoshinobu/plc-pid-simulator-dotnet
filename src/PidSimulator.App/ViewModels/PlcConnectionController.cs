@@ -3,6 +3,7 @@ using PidSimulator.Core.Plc;
 using PidSimulator.Core.Project;
 using PidSimulator.Plc.HostLink;
 using PidSimulator.Plc.Slmp;
+using PidSimulator.Plc.Modbus;
 
 namespace PidSimulator.App.ViewModels;
 
@@ -16,6 +17,7 @@ internal sealed class PlcConnectionController(
     {
         PlcMode.Slmp => new SlmpPlcClient(settings),
         PlcMode.HostLink => new HostLinkPlcClient(settings),
+        PlcMode.ModbusTcp => new ModbusPlcClient(settings),
         _ => dummy,
     });
 

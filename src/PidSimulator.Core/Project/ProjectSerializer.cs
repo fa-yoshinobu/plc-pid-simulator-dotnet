@@ -33,6 +33,7 @@ public static class ProjectSerializer
         var doc = current.Deserialize<ProjectDocument>(Options)
                   ?? throw new InvalidDataException("プロジェクトファイルが空です。");
         doc.Data.CsvFolder = DataSettings.PortableCsvFolder(doc.Data.CsvFolder);
+        if (!doc.Plc.TryValidateModbus(out string plcError)) throw new InvalidDataException(plcError);
         if (doc.Data.TrendMinutes is < TrendBuffer.MinRetentionMinutes or > TrendBuffer.MaxRetentionMinutes)
             throw new InvalidDataException($"トレンド保持時間は {TrendBuffer.MinRetentionMinutes}～{TrendBuffer.MaxRetentionMinutes} 分で指定してください。");
         foreach (var t in doc.Targets)
