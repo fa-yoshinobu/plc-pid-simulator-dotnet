@@ -56,7 +56,10 @@
                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"/>
             </TabItem>
         </TabControl>
-        <Button Grid.Row="2" Content="閉じる" Style="{StaticResource BtnPrimary}" Width="90"
-                HorizontalAlignment="Right" IsCancel="True" IsDefault="True" Click="CloseWindow"/>
+        <DockPanel Grid.Row="2">
+            <Button Content="ログフォルダーを開く" Style="{StaticResource BtnGhost}" Click="OpenLogs"/>
+            <Button Content="閉じる" Style="{StaticResource BtnPrimary}" Width="90"
+                    HorizontalAlignment="Right" IsCancel="True" IsDefault="True" Click="CloseWindow"/>
+        </DockPanel>
     </Grid>
 </Window>

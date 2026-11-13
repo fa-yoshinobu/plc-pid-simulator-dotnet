@@ -109,6 +109,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void UpdatePlcStatus()
     {
+        if (Engine.Failure is { } failure)
+        {
+            PlcStateKind = "alarm";
+            PlcStatusText = $"演算スレッド停止：{failure.Message}（保存してアプリを再起動してください）";
+            return;
+        }
         ConnectPlcCommand.NotifyCanExecuteChanged();
         DisconnectPlcCommand.NotifyCanExecuteChanged();
         var s = Engine.Plc.Status;
@@ -209,6 +215,11 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task StartAll()
     {
+        if (Engine.Failure != null)
+        {
+            Dialogs.Error("演算スレッド停止", "プロジェクトを保存し、アプリを再起動してください。");
+            return;
+        }
         var candidates = Targets.Where(t => t.IsStopped).ToList();
         if (candidates.Count == 0) { Notify("停止中の制御対象はありません"); return; }
         var blockers = candidates.ToDictionary(t => t, t => TargetBlockers(t.Model));
@@ -445,6 +456,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
         {
+            App.Diagnostics.Write("プロジェクト読込み失敗", ex);
             Dialogs.Error("プロジェクトを開けません", $"{path}\n\n{ex.Message}");
         }
     }
@@ -493,6 +505,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            App.Diagnostics.Write("プロジェクト保存失敗", ex);
             Dialogs.Error("保存できません", $"{path}\n\n{ex.Message}");
             return false;
         }
@@ -502,6 +515,22 @@ public sealed partial class MainViewModel : ObservableObject
         Engine.Log.Add(null, "登録", $"プロジェクトを保存: {Path.GetFileName(path)}");
         Notify($"{Path.GetFileName(path)} に保存しました");
         return true;
+    }
+
+    public string? SaveRecovery()
+    {
+        if (!IsDirty) return null;
+        var document = new ProjectDocument
+        {
+            Name = ProjectName,
+            Plc = PlcSettings,
+            Data = DataSettings,
+            Targets = Engine.Targets.Select(t => t.ToConfig()).ToList(),
+        };
+        string directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "PidSimulator", "recovery");
+        return ProjectRecovery.Save(document, ProjectPath, directory,
+            error => App.Diagnostics.Write("元の場所への回復保存失敗", error));
     }
 
     private void LoadDocument(ProjectDocument doc, string? path)

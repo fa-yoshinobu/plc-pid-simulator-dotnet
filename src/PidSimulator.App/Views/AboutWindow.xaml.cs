@@ -67,6 +67,24 @@ public partial class AboutWindow : Window
         }
     }
 
+    private void OpenLogs(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string directory = App.Diagnostics.GetExistingDirectoryPath();
+            Process.Start(new ProcessStartInfo("explorer.exe")
+            {
+                Arguments = $"\"{directory}\"",
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or Win32Exception)
+        {
+            App.Diagnostics.Write("ログフォルダーを開けません", ex);
+            Dialogs.Error("ログフォルダー", ex.Message);
+        }
+    }
+
     private void CloseWindow(object sender, RoutedEventArgs e) => Close();
 
     public sealed record LibraryInfo(string Name, string Version, string License, string Purpose);

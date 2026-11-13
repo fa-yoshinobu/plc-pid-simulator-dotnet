@@ -37,14 +37,18 @@ public sealed class ControlTarget
     private bool _resumeRequested;
     private double? _pendingPvWrite;
     private double _lastPoll;
+    private bool _cycleFaulted;
     private readonly DisturbanceSchedule _disturbanceSchedule = new();
 
     public ControlTarget(string name, ModelKind kind, int seed = 0)
+        : this(name, kind, ModelCatalog.Create(kind, seed)) { }
+
+    internal ControlTarget(string name, ModelKind kind, ProcessModel model)
     {
         Name = name;
         Kind = kind;
         Info = ModelCatalog.Get(kind);
-        Model = ModelCatalog.Create(kind, seed);
+        Model = model;
         MvRange = new RangeDef { EngMin = 0, EngMax = 100, Unit = "%" };
         PvRange = new RangeDef { EngMin = Info.PvMin, EngMax = Info.PvMax, Unit = Info.Unit };
         SpRange = PvRange.Clone();
@@ -142,6 +146,11 @@ public sealed class ControlTarget
         lock (Sync)
         {
             error = null;
+            if (_cycleFaulted)
+            {
+                error = "演算エラーをリセットしてから開始してください。";
+                return false;
+            }
             if (RunState == RunState.Running) return true;
             if (Comm != CommStatus.Ok)
             {
@@ -330,6 +339,7 @@ public sealed class ControlTarget
         lock (Sync)
         {
             if (Alarm == null && Comm == CommStatus.Ok) return false;
+            _cycleFaulted = false;
             if (Comm != CommStatus.Ok) _resumeRequested = true;
             else
             {
@@ -530,10 +540,26 @@ public sealed class ControlTarget
     }
     // ---- 周期処理（演算スレッド） ----
 
+    internal void FaultCycle(Exception error, EventLog log)
+    {
+        lock (Sync)
+        {
+            RunState = RunState.Stopped;
+            PvWriting = false;
+            _pendingPvWrite = null;
+            _resumeRequested = false;
+            _cycleFaulted = true;
+            CancelDisturbanceScheduleCore(log);
+            Alarm = $"演算エラー：{error.Message}";
+            log.Add(this, "異常", Alarm);
+        }
+    }
+
     public void Cycle(IPlcClient plc, double dt, double t, EventLog log)
     {
         lock (Sync)
         {
+            if (_cycleFaulted) return;
             if (RunState != RunState.Preview) PollRecovery(plc, t, log);
 
             if (_pendingPvWrite is double stopValue)

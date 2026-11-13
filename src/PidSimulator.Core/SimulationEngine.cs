@@ -17,6 +17,11 @@ public sealed class SimulationEngine : IDisposable
     private volatile bool _running;
     private double _t;
     private int _trendMinutes = TrendBuffer.DefaultRetentionMinutes;
+    private Exception? _failure;
+
+    public bool IsRunning => _running;
+    public Exception? Failure => Volatile.Read(ref _failure);
+    public event Action<Exception, string>? Error;
 
     public SimulationEngine(IPlcClient plc)
     {
@@ -110,12 +115,21 @@ public sealed class SimulationEngine : IDisposable
         Volatile.Write(ref _t, t);
         var plc = Plc;
         plc.Tick(Dt);
-        foreach (var target in list) target.Cycle(plc, Dt, t, Log);
+        foreach (var target in list)
+        {
+            try { target.Cycle(plc, Dt, t, Log); }
+            catch (Exception ex)
+            {
+                target.FaultCycle(ex, Log);
+                Error?.Invoke(ex, $"制御対象 {target.Name}");
+            }
+        }
     }
 
     public void Run()
     {
         if (_running) return;
+        Volatile.Write(ref _failure, null);
         _running = true;
         _thread = new Thread(Loop) { IsBackground = true, Name = "SimulationEngine", Priority = ThreadPriority.AboveNormal };
         _thread.Start();
@@ -123,15 +137,29 @@ public sealed class SimulationEngine : IDisposable
 
     private void Loop()
     {
-        var sw = Stopwatch.StartNew();
-        double next = 0;
-        while (_running)
+        try
         {
-            StepOnce();
-            next += Dt * 1000;
-            double wait = next - sw.Elapsed.TotalMilliseconds;
-            if (wait > 1) Thread.Sleep((int)wait);
-            else if (wait < -1000) next = sw.Elapsed.TotalMilliseconds; // 大幅な遅れは追いつかずに捨てる
+            var sw = Stopwatch.StartNew();
+            double next = 0;
+            while (_running)
+            {
+                StepOnce();
+                next += Dt * 1000;
+                double wait = next - sw.Elapsed.TotalMilliseconds;
+                if (wait > 1) Thread.Sleep((int)wait);
+                else if (wait < -1000) next = sw.Elapsed.TotalMilliseconds; // 大幅な遅れは追いつかずに捨てる
+            }
+        }
+        catch (Exception ex)
+        {
+            Volatile.Write(ref _failure, ex);
+            foreach (var target in Targets) target.FaultCycle(ex, Log);
+            Log.Add(null, "異常", $"演算スレッドが停止しました：{ex.Message}");
+            Error?.Invoke(ex, "演算スレッド停止");
+        }
+        finally
+        {
+            _running = false;
         }
     }
 

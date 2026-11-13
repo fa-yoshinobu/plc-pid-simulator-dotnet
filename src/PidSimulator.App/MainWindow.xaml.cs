@@ -10,7 +10,8 @@ public partial class MainWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        if (DataContext is MainViewModel vm && !vm.ConfirmLeave("終了")) e.Cancel = true;
+        if (Application.Current is not App { IsTerminating: true }
+            && DataContext is MainViewModel vm && !vm.ConfirmLeave("終了")) e.Cancel = true;
         base.OnClosing(e);
     }
 }
