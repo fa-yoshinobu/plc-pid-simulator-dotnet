@@ -10,7 +10,7 @@ chcp 65001 >nul
 set "ROOT=%~dp0"
 set "SOLUTION=%ROOT%PidSimulator.sln"
 set "PROJECT=%ROOT%src\PidSimulator.App\PidSimulator.App.csproj"
-set "TESTS=%ROOT%tests\PidSimulator.Tests\PidSimulator.Tests.csproj"
+set "TESTS=%SOLUTION%"
 set "PUBLISH_DIR=%ROOT%artifacts\release"
 set "EXE_NAME=PidSimulator.exe"
 set "EXE=%PUBLISH_DIR%\%EXE_NAME%"
@@ -22,7 +22,7 @@ echo [build] Output : "%EXE%"
 where dotnet >nul 2>nul
 if errorlevel 1 (
   echo [error] dotnet が見つかりません。.NET 10 SDK をインストールしてください。
-  echo [error] https://dotnet.microsoft.com/download/dotnet/9.0
+  echo [error] https://dotnet.microsoft.com/download/dotnet/10.0
   exit /b 1
 )
 

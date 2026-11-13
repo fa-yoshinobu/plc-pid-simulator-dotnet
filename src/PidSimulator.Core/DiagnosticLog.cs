@@ -6,6 +6,8 @@ namespace PidSimulator.Core;
 /// <summary>診断記録をサイズ上限付きで保持する。記録の失敗で演算を止めない。</summary>
 public sealed class DiagnosticLog(string directory, int maxFileBytes = 256 * 1024, int maxFiles = 4)
 {
+    public static DiagnosticLog Shared { get; } = new(DefaultDirectory);
+
     private readonly object _gate = new();
     public string DirectoryPath { get; } = directory;
     public string GetExistingDirectoryPath()

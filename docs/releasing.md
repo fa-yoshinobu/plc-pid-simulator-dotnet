@@ -50,7 +50,6 @@ VirusTotalへの通常の送信は公開サンプルの投稿です。検査結�
 
 固定名ZIPとSHA-256による配布を適用済みです。旧リリースのAssetは変更しません。本文更新ワークフローも新形式のAssetがあるリリースだけを対象にします。
 
-
 ## 同梱ランタイムの更新確認
 
 自己完結EXEの再現性を保つため、アプリcsprojの `Microsoft.NETCore.App` と `Microsoft.WindowsDesktop.App.WPF` の `FrameworkReference` にある `RuntimeFrameworkVersion` を固定します。利用者がPCの.NETを更新しても、同梱ランタイムは更新されません。
@@ -66,3 +65,10 @@ python -B .github/scripts/check_runtime_update.py
 更新時は両FrameworkReferenceの固定値を合わせ、ビルド・テスト・発行EXEのトレンド描画と拡大縮小を確認し、CHANGELOGと必要なリリース本文を更新して新しい版を公開します。公開済みZIPの差替えは行いません。
 
 本文の生成は `release_assets.py` に統一し、未使用の `render-release-notes.ps1` は削除しました。検査処理は現在各リポジトリ内のスクリプトを使用しています。共通仕様リポジトリで利用可能な再利用ワークフローを確認できないため、既存の検査スクリプトを維持します。
+
+
+## 配布文面の保守
+
+新規リリースの前に、CHANGELOGの該当項目を基に `.github/release-notes.md` のChangesを英語で更新します。本文・VirusTotal CIの表示は英語に統一し、READMEや内部資料の言語は維持します。[共通リリース標準](https://github.com/fa-yoshinobu/release_standard)も参照してください。
+
+READMEの最新版リンクは固定名ZIPとSHA-256を指します。各リリース本文はそのタグの配布物を指し、旧リリースのAssetは変更しません。ローカルの配布物は `artifacts/release/` の `PidSimulator.exe`・`DEMO.psim`・ZIP・SHA-256です。

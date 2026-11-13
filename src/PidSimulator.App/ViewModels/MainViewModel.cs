@@ -34,11 +34,19 @@ public sealed partial class MainViewModel : ObservableObject
         _projectName = projectName;
         foreach (var t in engine.Targets) Targets.Add(new TargetViewModel(this, t));
         foreach (var e in engine.Log.Snapshot().Reverse()) Events.Add(e);
-        engine.Log.Added += e => Application.Current?.Dispatcher.BeginInvoke(() =>
+        var dispatcher = Dispatcher.CurrentDispatcher;
+        void UpdateUi(Action update)
+        {
+            if (dispatcher.CheckAccess()) update();
+            else dispatcher.BeginInvoke(update);
+        }
+        engine.Log.Added += e => UpdateUi(() =>
         {
             Events.Insert(0, e);
-            if (Events.Count > 2000) Events.RemoveAt(Events.Count - 1);
+            if (Events.Count > EventLog.Capacity) Events.RemoveAt(Events.Count - 1);
         });
+        engine.Log.RetentionWarning += () => UpdateUi(() => _interaction.Info("イベントログの保持上限",
+            $"イベントログは最大{EventLog.Capacity}件です。以降は古いものから削除されます。必要な記録は保持中に保存してください。"));
 
         Overview = new OverviewViewModel(this);
         _currentPage = Overview;

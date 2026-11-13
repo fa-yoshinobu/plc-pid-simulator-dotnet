@@ -7,7 +7,7 @@ PLCからMV（操作量）を受け取り、タンクの温度・液面・流量
 
 ## ダウンロード・起動
 
-1. [GitHub Releases](https://github.com/fa-yoshinobu/plc-pid-simulator-dotnet/releases) からWindows x64版のZIPをダウンロードします。
+1. [最新版のWindows x64 ZIP](https://github.com/fa-yoshinobu/plc-pid-simulator-dotnet/releases/latest/download/PidSimulator-win-x64.zip) と [SHA-256チェックサム](https://github.com/fa-yoshinobu/plc-pid-simulator-dotnet/releases/latest/download/PidSimulator-win-x64.zip.sha256) をダウンロードします。
 2. ZIPを展開し、`PidSimulator.exe` を起動します。`DEMO.psim` は同じフォルダに置いてください。
 
 Windows 10 / 11（64ビット）で動作します。.NETの追加インストールは不要です。VirusTotalの検査結果は、各リリースのリンクから確認できます。
@@ -55,28 +55,10 @@ Windows 10 / 11（64ビット）で動作します。.NETの追加インスト�
 - [制御パターンの選び方](docs/control-patterns.md)
 - [モデルの計算](docs/models.md)
 - [設備条件からのパラメータ計算](docs/parameter-calculator.md)
-- [仕様](docs/specification.md)・[変更履歴](CHANGELOG.md)
+- [仕様](docs/specification.md)・[変更履歴](CHANGELOG.md)・[TODO](TODO.md)
 
 開発者向け：[ビルド・開発](docs/build.md)・[リリース手順](docs/releasing.md)
 
 ## ライセンス
 
 [MIT License](LICENSE)
-
-## Release distribution
-
-The fixed-name ZIP and checksum links below are available for the current release. Older releases retain their original assets.
-
-- [Latest Windows x64 ZIP](https://github.com/fa-yoshinobu/plc-pid-simulator-dotnet/releases/latest/download/PidSimulator-win-x64.zip)
-- [ZIP SHA-256 checksum](https://github.com/fa-yoshinobu/plc-pid-simulator-dotnet/releases/latest/download/PidSimulator-win-x64.zip.sha256)
-- [Changelog](CHANGELOG.md) / [TODO](TODO.md)
-
-Extract the ZIP file and run `PidSimulator.exe`. Keep `DEMO.psim` in the same folder.
-
-Windows x64. The .NET runtime is included.
-
-Release notes and VirusTotal scan messages are in English. Existing project documents may keep their current language.
-
-Maintainers: update the English Changes section in `.github/release-notes.md` from the relevant CHANGELOG entries before releasing. The release workflow publishes the ZIP and checksum, then scans the actual published executables. Use the `Scan release with VirusTotal` workflow with a release tag to retry an incomplete scan. See the [shared release standard](https://github.com/fa-yoshinobu/release_standard).
-
-ローカルの配布EXEは `artifacts/release/PidSimulator.exe` です。同じフォルダーへ配布ZIPとSHA-256を作成します。

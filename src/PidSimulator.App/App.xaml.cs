@@ -12,7 +12,7 @@ public partial class App : Application
     private MainViewModel? _viewModel;
     private int _handlingError;
     public bool IsTerminating { get; private set; }
-    public static DiagnosticLog Diagnostics { get; } = new(DiagnosticLog.DefaultDirectory);
+    public static DiagnosticLog Diagnostics { get; } = DiagnosticLog.Shared;
 
     protected override void OnStartup(StartupEventArgs e)
     {

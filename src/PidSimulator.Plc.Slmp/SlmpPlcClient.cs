@@ -131,7 +131,10 @@ public sealed class SlmpPlcClient : CachedPlcClient<SlmpClient>
             // 型を保つ名前付き読込を使い、専用ルートを要する長タイマ等だけ直接読込に任せる。
             string key = Key(address, suffix);
             try { return (await client.ReadNamedAsync([key], ct).ConfigureAwait(false))[key]; }
-            catch (ArgumentException) { }
+            catch (ArgumentException)
+            {
+                // 名前付き読込で扱えない型は下の直接読込へ回す。不正アドレスは直接読込側でも拒否される。
+            }
         }
         if (suffix == "BIT")
         {

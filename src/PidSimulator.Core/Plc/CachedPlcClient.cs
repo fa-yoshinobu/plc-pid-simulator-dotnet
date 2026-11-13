@@ -17,6 +17,7 @@ public abstract class CachedPlcClient<TClient> : IConnectablePlcClient where TCl
     private readonly Dictionary<string, WritePoint> _writes = new(StringComparer.OrdinalIgnoreCase);
     private readonly TimeSpan _cycle;
     private readonly TimeProvider _timeProvider;
+    private readonly DiagnosticLog _diagnostics;
     private readonly TimeSpan _staleLimit;
     private readonly CancellationTokenSource _cts = new();
     private Task? _loop;
@@ -27,9 +28,10 @@ public abstract class CachedPlcClient<TClient> : IConnectablePlcClient where TCl
     private long _errorCount;
     private int _disposed;
 
-    protected CachedPlcClient(PlcSettings settings, string endpoint, TimeProvider? timeProvider = null)
+    protected CachedPlcClient(PlcSettings settings, string endpoint, TimeProvider? timeProvider = null, DiagnosticLog? diagnostics = null)
     {
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _diagnostics = diagnostics ?? DiagnosticLog.Shared;
         Settings = settings.Effective();
         _cycle = TimeSpan.FromMilliseconds(Math.Max(20, Settings.CommCycleMs));
         _staleLimit = TimeSpan.FromMilliseconds(Settings.TimeoutMs) + _cycle * 3;
@@ -360,7 +362,15 @@ public abstract class CachedPlcClient<TClient> : IConnectablePlcClient where TCl
         }
         if (c != null)
         {
-            try { await c.DisposeAsync().ConfigureAwait(false); } catch { /* 破棄時の例外は無視 */ }
+            try { await c.DisposeAsync().ConfigureAwait(false); }
+            catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+            {
+                // 停止操作に伴うキャンセルは破棄失敗ではない。
+            }
+            catch (Exception error)
+            {
+                _diagnostics.Write("PLC通信クライアントの破棄に失敗", error);
+            }
         }
     }
 
@@ -403,7 +413,19 @@ public abstract class CachedPlcClient<TClient> : IConnectablePlcClient where TCl
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         lock (_lock) _state = PlcConnectionState.Disconnected;
         _cts.Cancel();
-        try { _loop?.Wait(TimeSpan.FromSeconds(3)); } catch { /* ループ終了時の例外は無視 */ }
+        try
+        {
+            if (_loop != null && !_loop.Wait(TimeSpan.FromSeconds(3)))
+                _diagnostics.Write("PLC通信ループが3秒以内に終了しませんでした");
+        }
+        catch (AggregateException error) when (error.InnerExceptions.All(e => e is OperationCanceledException))
+        {
+            // Disposeで要求したキャンセルによるタスク終了は正常な停止。
+        }
+        catch (Exception error)
+        {
+            _diagnostics.Write("PLC通信ループの終了待ちに失敗", error);
+        }
         _cts.Dispose();
     }
 

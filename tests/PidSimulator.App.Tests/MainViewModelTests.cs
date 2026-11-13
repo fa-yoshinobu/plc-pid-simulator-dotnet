@@ -16,6 +16,24 @@ namespace PidSimulator.App.Tests;
 public class MainViewModelTests
 {
     [Fact]
+    public void EventRetentionWarnsOnceBeforeDeletingAndKeepsTheSameUiLimit() => OnSta(() =>
+    {
+        using var session = new Session();
+        for (int i = 0; i < EventLog.Capacity - 1; i++) session.Engine.Log.Add(null, "test", $"entry-{i}");
+        Assert.Empty(session.Ui.Information);
+        session.Engine.Log.Add(null, "test", "limit");
+        Assert.Single(session.Ui.Information);
+        Assert.Contains("最大5000件", session.Ui.Information[0]);
+        Assert.Equal("entry-0", session.Engine.Log.Snapshot()[0].Message);
+        Assert.Equal(EventLog.Capacity, session.Main.Events.Count);
+
+        session.Engine.Log.Add(null, "test", "after-limit");
+        Assert.Single(session.Ui.Information);
+        Assert.Equal(EventLog.Capacity, session.Main.Events.Count);
+        Assert.DoesNotContain(session.Main.Events, entry => entry.Message == "entry-0");
+    });
+
+    [Fact]
     public void NewRegisterSaveAndReopenUsesTheSameProjectAndAddresses() => OnSta(() =>
     {
         using var session = new Session();
