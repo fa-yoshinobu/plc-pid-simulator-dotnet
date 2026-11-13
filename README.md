@@ -78,3 +78,5 @@ Windows x64. The .NET runtime is included.
 Release notes and VirusTotal scan messages are in English. Existing project documents may keep their current language.
 
 Maintainers: update the English Changes section in `.github/release-notes.md` from the relevant CHANGELOG entries before releasing. The release workflow publishes the ZIP and checksum, then scans the actual published executables. Use the `Scan release with VirusTotal` workflow with a release tag to retry an incomplete scan. See the [shared release standard](https://github.com/fa-yoshinobu/release_standard).
+
+ローカルの配布EXEは `artifacts/release/PidSimulator.exe` です。同じフォルダーへ配布ZIPとSHA-256を作成します。

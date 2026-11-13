@@ -5,14 +5,14 @@
 ## Getting started
 Extract the ZIP file and run `PidSimulator.exe`. Keep `DEMO.psim` in the same folder.
 
-Requirements: Windows x64. The .NET runtime is included.
+Requirements: Windows 10 version 2004 or later (x64). The .NET runtime is included.
 
 ## Changes
 ### Changed
-- Standardized Windows ZIP distribution, checksums and release documentation.
+- Publish the executable, fixed-name distribution ZIP and SHA-256 checksum under `artifacts/release/` in local builds and CI.
 
 ### Fixed
-- Wait for VirusTotal analysis to complete and preserve unrelated release notes when updating scan results.
+- Reject incomplete VirusTotal responses without a matching API-provided executable SHA-256.
 
 <!-- virustotal:start -->
 {{VIRUSTOTAL_CONTENT}}

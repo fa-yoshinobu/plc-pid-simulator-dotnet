@@ -23,17 +23,17 @@ cd plc-pid-simulator-dotnet
 .\build.bat
 ```
 
-Release構成でテストを実行し、成功したらWindows x64向けのEXEを作成します。出力先は `publish\win-x64-single` で、次の2ファイルを配置します。
+Release構成でテストを実行し、成功したらWindows x64向けのEXEを作成します。出力先は `artifacts\release` で、次のEXEとサンプル、および配布ZIP・SHA-256を配置します。
 
 ```text
-publish/win-x64-single/
+artifacts/release/
 ├─ PidSimulator.exe
 └─ DEMO.psim
 ```
 
 EXEは.NETランタイムを含む単一ファイルです。配布先に.NETのインストールは不要です。`DEMO.psim` はEXEと同じフォルダに置いてください。
 
-起動中の `PidSimulator.exe` がある場合はビルドを中止します。アプリを閉じてから、同じコマンドを再実行してください。出力先は毎回同じフォルダを作り直します。
+起動中の `PidSimulator.exe` がある場合はビルドを中止します。アプリを閉じてから、同じコマンドを再実行してください。既存の出力フォルダは削除せず、配布ファイルを更新します。
 
 テストを省略して発行する場合：
 
@@ -44,7 +44,7 @@ EXEは.NETランタイムを含む単一ファイルです。配布先に.NETの
 作成したEXEを起動する場合：
 
 ```powershell
-.\start.bat
+.\artifacts\release\PidSimulator.exe
 ```
 
 ## 開発中の実行とテスト
@@ -100,3 +100,5 @@ dotnet run --project tools/Artwork
 アプリアイコン `src/PidSimulator.App/Assets/AppIcon.ico`・`AppIcon.png` と、`docs/images/social-preview.png`（1280×640）を生成します。
 
 GitHubで共有時の画像を更新するときは、リポジトリの **Settings → General → Social preview** から `social-preview.png` をアップロードしてください。
+
+配布ZIPとその `.zip.sha256` も `artifacts/release/` に作成します。ZIPには必要な配布ファイルだけを含め、既存ZIP・チェックサム・リリース本文は含めません。旧出力フォルダは自動削除しません。

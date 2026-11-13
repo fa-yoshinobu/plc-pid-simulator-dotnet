@@ -153,8 +153,11 @@ def completed_report(filename, digest, analysis_id, analysis):
             or any(type(value) is not int or value < 0 for value in stats.values())
             or sum(stats[key] for key in required) == 0):
         raise ScanError("VirusTotal completed without usable engine results.")
-    reported_hash = analysis.get("meta", {}).get("file_info", {}).get("sha256")
-    if reported_hash and reported_hash.lower() != digest:
+    meta = analysis.get("meta")
+    file_info = meta.get("file_info") if isinstance(meta, dict) else None
+    reported_hash = file_info.get("sha256") if isinstance(file_info, dict) else None
+    if (not isinstance(reported_hash, str) or len(reported_hash) != 64
+            or reported_hash.lower() != digest):
         raise ScanError("VirusTotal analysis does not match the submitted executable.")
     detections = []
     results = attributes.get("results", {})
