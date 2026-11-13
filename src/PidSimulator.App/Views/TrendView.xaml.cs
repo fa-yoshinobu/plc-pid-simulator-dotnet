@@ -61,7 +61,9 @@ public partial class TrendView : UserControl
         var timeAxis = p.Axes.DateTimeTicksBottom();
         timeAxis.TickGenerator = new ScottPlot.TickGenerators.DateTimeAutomatic
         {
-            LabelFormatter = dt => dt.ToString("HH:mm:ss"),
+            LabelFormatter = dt => Vm is { } vm
+                ? vm.Main.Engine.ToTime((dt - vm.Main.Engine.BaseTime).TotalSeconds).ToString("HH:mm:ss")
+                : dt.ToString("HH:mm:ss"),
         };
         p.Axes.Right.Label.Text = "MV [%]";
         p.Axes.Right.Label.ForeColor = CMv;
@@ -96,7 +98,8 @@ public partial class TrendView : UserControl
         {
             int step = Math.Max(1, _buffer.Count / MaxPoints);
             var data = _buffer.Where((_, i) => i % step == 0 || i == _buffer.Count - 1).ToArray();
-            double[] xs = data.Select(s => engine.ToTime(s.T).ToOADate()).ToArray();
+            // Keep sample order and cursor search stable even when the PC clock moves backward.
+            double[] xs = data.Select(s => engine.BaseTime.AddSeconds(s.T).ToOADate()).ToArray();
 
             AddForceSpans(p, data, xs);
             IYAxis right = p.Axes.Right;
@@ -128,7 +131,7 @@ public partial class TrendView : UserControl
 
         if (!_paused || _limitsPending)
         {
-            p.Axes.SetLimitsX(engine.ToTime(tStart).ToOADate(), engine.ToTime(tEnd).ToOADate());
+            p.Axes.SetLimitsX(engine.BaseTime.AddSeconds(tStart).ToOADate(), engine.BaseTime.AddSeconds(tEnd).ToOADate());
             var (lo, hi) = PvLimits(target);
             p.Axes.SetLimitsY(lo, hi);
             p.Axes.SetLimitsY(target.MvRange.EngMin, target.MvRange.EngMax, p.Axes.Right);

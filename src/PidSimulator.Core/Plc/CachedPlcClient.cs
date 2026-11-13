@@ -16,6 +16,7 @@ public abstract class CachedPlcClient<TClient> : IConnectablePlcClient where TCl
     private readonly Dictionary<string, ReadPoint> _reads = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, WritePoint> _writes = new(StringComparer.OrdinalIgnoreCase);
     private readonly TimeSpan _cycle;
+    private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _staleLimit;
     private readonly CancellationTokenSource _cts = new();
     private Task? _loop;
@@ -26,8 +27,9 @@ public abstract class CachedPlcClient<TClient> : IConnectablePlcClient where TCl
     private long _errorCount;
     private int _disposed;
 
-    protected CachedPlcClient(PlcSettings settings, string endpoint)
+    protected CachedPlcClient(PlcSettings settings, string endpoint, TimeProvider? timeProvider = null)
     {
+        _timeProvider = timeProvider ?? TimeProvider.System;
         Settings = settings.Effective();
         _cycle = TimeSpan.FromMilliseconds(Math.Max(20, Settings.CommCycleMs));
         _staleLimit = TimeSpan.FromMilliseconds(Settings.TimeoutMs) + _cycle * 3;
@@ -89,7 +91,7 @@ public abstract class CachedPlcClient<TClient> : IConnectablePlcClient where TCl
     public PlcIoStatus Read(string address, string dataType, out double raw)
     {
         raw = 0;
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetTimestamp();
         string suffix = PlcDataTypes.Suffix(dataType);
         string key = Key(address, suffix);
         lock (_lock)
@@ -102,12 +104,12 @@ public abstract class CachedPlcClient<TClient> : IConnectablePlcClient where TCl
             }
             p.LastUsedAt = now;
             if (p.Error != null) return PlcIoStatus.Failed;
-            if (p.UpdatedAt is { } updated && now - updated <= _staleLimit)
+            if (p.UpdatedAt is { } updated && _timeProvider.GetElapsedTime(updated, now) <= _staleLimit)
             {
                 raw = p.Raw;
                 return PlcIoStatus.Ok;
             }
-            return p.UpdatedAt == null && now - p.RegisteredAt <= _staleLimit ? PlcIoStatus.Pending : PlcIoStatus.Failed;
+            return p.UpdatedAt == null && _timeProvider.GetElapsedTime(p.RegisteredAt, now) <= _staleLimit ? PlcIoStatus.Pending : PlcIoStatus.Failed;
         }
     }
 
@@ -125,7 +127,7 @@ public abstract class CachedPlcClient<TClient> : IConnectablePlcClient where TCl
                 _writes[key] = p;
             }
             p.Raw = PlcDataTypes.Clamp(dataType, raw);
-            p.SetAt = DateTime.UtcNow;
+            p.SetAt = _timeProvider.GetTimestamp();
             return p.Error != null ? PlcIoStatus.Failed : PlcIoStatus.Ok;
         }
     }
@@ -232,16 +234,16 @@ public abstract class CachedPlcClient<TClient> : IConnectablePlcClient where TCl
         await DropClientAsync().ConfigureAwait(false);
     }
 
-    private async Task ExchangeAsync(TClient client, CancellationToken ct)
+    internal async Task ExchangeAsync(TClient client, CancellationToken ct)
     {
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetTimestamp();
         List<ReadPoint> batch, retry;
         lock (_lock)
         {
-            foreach (var k in _reads.Where(p => now - p.Value.LastUsedAt > UnusedLifetime).Select(p => p.Key).ToList()) _reads.Remove(k);
-            foreach (var k in _writes.Where(p => now - p.Value.SetAt > UnusedLifetime).Select(p => p.Key).ToList()) _writes.Remove(k);
+            foreach (var k in _reads.Where(p => _timeProvider.GetElapsedTime(p.Value.LastUsedAt, now) > UnusedLifetime).Select(p => p.Key).ToList()) _reads.Remove(k);
+            foreach (var k in _writes.Where(p => _timeProvider.GetElapsedTime(p.Value.SetAt, now) > UnusedLifetime).Select(p => p.Key).ToList()) _writes.Remove(k);
             batch = _reads.Values.Where(p => p.Error == null).ToList();
-            retry = _reads.Values.Where(p => p.Error != null && now - p.ErrorAt > BadPointRetry).ToList();
+            retry = _reads.Values.Where(p => p.Error != null && _timeProvider.GetElapsedTime(p.ErrorAt, now) > BadPointRetry).ToList();
         }
 
         // MV・SP の一括読込
@@ -251,7 +253,7 @@ public abstract class CachedPlcClient<TClient> : IConnectablePlcClient where TCl
             try
             {
                 var result = await ReadValuesAsync(client, chunk.Select(p => p.Key).ToArray(), ct).ConfigureAwait(false);
-                var t = DateTime.UtcNow;
+                var t = _timeProvider.GetTimestamp();
                 lock (_lock)
                 {
                     foreach (var p in chunk)
@@ -273,8 +275,8 @@ public abstract class CachedPlcClient<TClient> : IConnectablePlcClient where TCl
         lock (_lock)
         {
             due = _writes.Values
-                .Where(p => p.Error == null || now - p.ErrorAt > BadPointRetry)
-                .Where(p => p.Written != p.Raw || now - p.WrittenAt > WriteRefresh)
+                .Where(p => p.Error == null || _timeProvider.GetElapsedTime(p.ErrorAt, now) > BadPointRetry)
+                .Where(p => p.Written != p.Raw || _timeProvider.GetElapsedTime(p.WrittenAt, now) > WriteRefresh)
                 .Select(p => (p, p.Raw)).ToList();
         }
         foreach (var chunk in due.Chunk(WriteBatchSize))
@@ -297,11 +299,11 @@ public abstract class CachedPlcClient<TClient> : IConnectablePlcClient where TCl
         try
         {
             object v = await ReadValueAsync(client, p.Address, p.Suffix, ct).ConfigureAwait(false);
-            lock (_lock) { p.Raw = ToRaw(v); p.UpdatedAt = DateTime.UtcNow; p.Error = null; }
+            lock (_lock) { p.Raw = ToRaw(v); p.UpdatedAt = _timeProvider.GetTimestamp(); p.Error = null; }
         }
         catch (Exception ex) when (IsPointError(ex))
         {
-            lock (_lock) { p.Error = DescribeError(ex); p.ErrorAt = DateTime.UtcNow; _lastError = $"{p.Address}：{p.Error}"; _errorCount++; }
+            lock (_lock) { p.Error = DescribeError(ex); p.ErrorAt = _timeProvider.GetTimestamp(); _lastError = $"{p.Address}：{p.Error}"; _errorCount++; }
         }
     }
 
@@ -314,13 +316,13 @@ public abstract class CachedPlcClient<TClient> : IConnectablePlcClient where TCl
         }
         catch (Exception ex) when (IsPointError(ex))
         {
-            lock (_lock) { p.Error = DescribeError(ex); p.ErrorAt = DateTime.UtcNow; _lastError = $"{p.Address}：{p.Error}"; _errorCount++; }
+            lock (_lock) { p.Error = DescribeError(ex); p.ErrorAt = _timeProvider.GetTimestamp(); _lastError = $"{p.Address}：{p.Error}"; _errorCount++; }
         }
     }
 
     private void MarkWritten(IEnumerable<(WritePoint Point, double Raw)> written)
     {
-        var t = DateTime.UtcNow;
+        var t = _timeProvider.GetTimestamp();
         lock (_lock)
         {
             foreach (var (p, raw) in written) { p.Written = raw; p.WrittenAt = t; p.Error = null; }
@@ -411,11 +413,11 @@ public abstract class CachedPlcClient<TClient> : IConnectablePlcClient where TCl
         public string Address { get; } = address;
         public string Suffix { get; } = suffix;
         public double Raw { get; set; }
-        public DateTime? UpdatedAt { get; set; }
-        public DateTime RegisteredAt { get; set; }
-        public DateTime LastUsedAt { get; set; }
+        public long? UpdatedAt { get; set; }
+        public long RegisteredAt { get; set; }
+        public long LastUsedAt { get; set; }
         public string? Error { get; set; }
-        public DateTime ErrorAt { get; set; }
+        public long ErrorAt { get; set; }
     }
 
     private sealed class WritePoint(string key, string address, string suffix)
@@ -425,9 +427,9 @@ public abstract class CachedPlcClient<TClient> : IConnectablePlcClient where TCl
         public string Suffix { get; } = suffix;
         public double Raw { get; set; }
         public double? Written { get; set; }
-        public DateTime WrittenAt { get; set; }
-        public DateTime SetAt { get; set; } = DateTime.UtcNow;
+        public long WrittenAt { get; set; }
+        public long SetAt { get; set; }
         public string? Error { get; set; }
-        public DateTime ErrorAt { get; set; }
+        public long ErrorAt { get; set; }
     }
 }

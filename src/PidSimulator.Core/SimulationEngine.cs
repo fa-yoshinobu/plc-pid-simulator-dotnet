@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using PidSimulator.Core.Plc;
+﻿using PidSimulator.Core.Plc;
 
 namespace PidSimulator.Core;
 
@@ -18,14 +17,20 @@ public sealed class SimulationEngine : IDisposable
     private double _t;
     private int _trendMinutes = TrendBuffer.DefaultRetentionMinutes;
     private Exception? _failure;
+    private readonly TimeProvider _timeProvider;
+    private readonly object _clockLock = new();
+    private readonly List<(double T, DateTime Time)> _clockSegments = [];
+    private long? _lastStepTimestamp;
 
     public bool IsRunning => _running;
     public Exception? Failure => Volatile.Read(ref _failure);
     public event Action<Exception, string>? Error;
 
-    public SimulationEngine(IPlcClient plc)
+    public SimulationEngine(IPlcClient plc, TimeProvider? timeProvider = null)
     {
         _plc = plc;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _clockSegments.Add((0, Now));
         Log.Clock = () => Now;
     }
 
@@ -45,14 +50,50 @@ public sealed class SimulationEngine : IDisposable
     public EventLog Log { get; } = new();
 
     /// <summary>シミュレーション時刻 0 に対応する実時刻</summary>
-    public DateTime BaseTime { get; set; } = DateTime.Now;
+    public DateTime BaseTime
+    {
+        get { lock (_clockLock) return _clockSegments[0].Time; }
+        set { lock (_clockLock) { _clockSegments.Clear(); _clockSegments.Add((0, value)); } }
+    }
 
     /// <summary>シミュレーション経過時間 [s]</summary>
     public double T => Volatile.Read(ref _t);
 
-    public DateTime Now => BaseTime.AddSeconds(T);
+    public DateTime Now => _timeProvider.GetLocalNow().DateTime;
 
-    public DateTime ToTime(double t) => BaseTime.AddSeconds(t);
+    public DateTime ToTime(double t)
+    {
+        lock (_clockLock)
+        {
+            int low = 0, high = _clockSegments.Count;
+            while (low + 1 < high)
+            {
+                int middle = (low + high) / 2;
+                if (_clockSegments[middle].T <= t) low = middle;
+                else high = middle;
+            }
+            var segment = _clockSegments[low];
+            return segment.Time.AddSeconds(t - segment.T);
+        }
+    }
+
+    // Keep older samples tied to their original wall time when the clock or scheduling changes.
+    internal void StepRealtime()
+    {
+        long timestamp = _timeProvider.GetTimestamp();
+        bool firstStep = _lastStepTimestamp == null;
+        double interrupted = _lastStepTimestamp is { } previous
+            ? _timeProvider.GetElapsedTime(previous, timestamp).TotalSeconds - Dt : 0;
+        _lastStepTimestamp = timestamp;
+        double nextT = T + Dt;
+        DateTime now = Now;
+        if (firstStep || interrupted > 1 || Math.Abs((now - ToTime(nextT)).TotalSeconds) > Dt)
+        {
+            lock (_clockLock) _clockSegments.Add((nextT, now));
+        }
+        if (interrupted > 1) Log.Add(null, "時刻", $"演算が {interrupted:0.0} 秒中断しました");
+        StepOnce();
+    }
 
     public IReadOnlyList<ControlTarget> Targets
     {
@@ -130,6 +171,7 @@ public sealed class SimulationEngine : IDisposable
     {
         if (_running) return;
         Volatile.Write(ref _failure, null);
+        _lastStepTimestamp = null;
         _running = true;
         _thread = new Thread(Loop) { IsBackground = true, Name = "SimulationEngine", Priority = ThreadPriority.AboveNormal };
         _thread.Start();
@@ -139,15 +181,16 @@ public sealed class SimulationEngine : IDisposable
     {
         try
         {
-            var sw = Stopwatch.StartNew();
+            long started = _timeProvider.GetTimestamp();
             double next = 0;
             while (_running)
             {
-                StepOnce();
+                StepRealtime();
                 next += Dt * 1000;
-                double wait = next - sw.Elapsed.TotalMilliseconds;
+                double elapsed = _timeProvider.GetElapsedTime(started).TotalMilliseconds;
+                double wait = next - elapsed;
                 if (wait > 1) Thread.Sleep((int)wait);
-                else if (wait < -1000) next = sw.Elapsed.TotalMilliseconds; // 大幅な遅れは追いつかずに捨てる
+                else if (wait < -1000) next = elapsed; // 大幅な遅れは追いつかずに捨てる
             }
         }
         catch (Exception ex)

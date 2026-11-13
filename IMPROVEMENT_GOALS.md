@@ -23,9 +23,9 @@ python -m unittest discover -s tests/release
 | # | ゴール | 優先度 | 状態 |
 | --- | --- | --- | --- |
 | G1 | 予期しないエラーで試験と未保存の変更を失わない | 高 | 完了 |
-| G2 | push/PRでビルドとテストが走る | 高 | 実装済み・CI検証中 |
+| G2 | push/PRでビルドとテストが走る | 高 | 完了 |
 | G3 | プロジェクトファイルを別のPC・別の版で開ける | 中 | 実装済み・別利用者での実機検証待ち |
-| G4 | PCのスリープや時計の変更で時刻と通信判定が狂わない | 中 | 未着手 |
+| G4 | PCのスリープや時計の変更で時刻と通信判定が狂わない | 中 | 完了 |
 | G5 | 画面側（ViewModel）にテストがあり、大きなクラスが分かれている | 中 | 未着手 |
 | G6 | 依存関係とリリース用ファイルを整理する | 中 | 未着手 |
 | G7 | 細かな整理 | 低 | 未着手 |
@@ -64,11 +64,11 @@ python -m unittest discover -s tests/release
 **対象**: `.github/workflows/`（新規 `ci.yml`）
 
 **完了条件**
-- [ ] `ci.yml` が `push`（main）と `pull_request` で起動し、`windows-latest` で `dotnet build PidSimulator.sln -c Release` と `dotnet test` を実行する。
-- [ ] `tools/Artwork` はソリューションに含まれていないため、CIで個別にビルドして、壊れていないことを確認する。
-- [ ] `release.yml` と同じく、Actionはコミットハッシュで固定し、`permissions: contents: read`、`persist-credentials: false`、`timeout-minutes` を設定する。
-- [ ] CIのビルドで警告をエラーにする（`TreatWarningsAsErrors`）。既知の `NU1701` の扱いは G6 で決める。
-- [ ] 通信のテスト（テスト用PLCサーバーを使うもの）がCI上で安定して通る。不安定なら原因を直す（再試行で隠さない）。
+- [x] `ci.yml` が `push`（main）と `pull_request` で起動し、`windows-latest` で `dotnet build PidSimulator.sln -c Release` と `dotnet test` を実行する。
+- [x] `tools/Artwork` はソリューションに含まれていないため、CIで個別にビルドして、壊れていないことを確認する。
+- [x] `release.yml` と同じく、Actionはコミットハッシュで固定し、`permissions: contents: read`、`persist-credentials: false`、`timeout-minutes` を設定する。
+- [x] CIのビルドで警告をエラーにする（`TreatWarningsAsErrors`）。既知の `NU1701` の扱いは G6 で決める。
+- [x] 通信のテスト（テスト用PLCサーバーを使うもの）がCI上で安定して通る。不安定なら原因を直す（再試行で隠さない）。
 
 **検証**: わざと失敗するテストを入れたブランチで、CIが失敗する。
 
@@ -108,11 +108,11 @@ python -m unittest discover -s tests/release
 **対象**: `src/PidSimulator.Core/SimulationEngine.cs`、`src/PidSimulator.Core/Plc/CachedPlcClient.cs`、`src/PidSimulator.Core/EventLog.cs`、`docs/specification.md`、`tests/PidSimulator.Tests/`
 
 **完了条件**
-- [ ] スリープ復帰などで遅れを捨てたとき、表示時刻（イベントログ・CSV・トレンドの時刻軸）が実時刻に合うようにする。方法（開始時刻を補正する、遅れを記録して時刻変換に使う、など）を決め、仕様書に書く。
-- [ ] 遅れを捨てたことをイベントログに1件残す（「演算が N 秒中断しました」）。
-- [ ] モデルの計算は、スリープ中の時間を進めない（復帰後に値が飛ばない）。現在の動作を維持する。
-- [ ] 通信キャッシュの鮮度・再試行・未使用の判定を、時計の変更に影響されない経過時間（`Stopwatch` など）で行う。
-- [ ] 時刻を差し替えられる形にし、「時計が1時間戻っても、古い値を有効と判定しない」テストを追加する。
+- [x] スリープ復帰などで遅れを捨てたとき、表示時刻（イベントログ・CSV・トレンドの時刻軸）が実時刻に合うようにする。方法（開始時刻を補正する、遅れを記録して時刻変換に使う、など）を決め、仕様書に書く。
+- [x] 遅れを捨てたことをイベントログに1件残す（「演算が N 秒中断しました」）。
+- [x] モデルの計算は、スリープ中の時間を進めない（復帰後に値が飛ばない）。現在の動作を維持する。
+- [x] 通信キャッシュの鮮度・再試行・未使用の判定を、時計の変更に影響されない経過時間（`Stopwatch` など）で行う。
+- [x] 時刻を差し替えられる形にし、「時計が1時間戻っても、古い値を有効と判定しない」テストを追加する。
 
 **検証**: 制御中にPCを数分スリープさせて復帰し、その後のイベントログと CSV の時刻が実時刻と一致する。
 
