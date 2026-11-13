@@ -8,8 +8,8 @@
 
   <ItemGroup>
     <!-- 自己完結EXEの再現性のため固定する。check-runtime-update.ymlで公式の修正版を毎週確認する。 -->
-    <FrameworkReference Update="Microsoft.NETCore.App" RuntimeFrameworkVersion="10.0.14" />
-    <FrameworkReference Update="Microsoft.WindowsDesktop.App.WPF" RuntimeFrameworkVersion="10.0.14" />
+    <FrameworkReference Update="Microsoft.NETCore.App" RuntimeFrameworkVersion="10.0.15" />
+    <FrameworkReference Update="Microsoft.WindowsDesktop.App.WPF" RuntimeFrameworkVersion="10.0.15" />
     <!-- ViewModelのObservableProperty/RelayCommand生成に使用する。 -->
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <!-- TrendViewのWPFトレンド表示・軸操作に使用する。 -->
@@ -37,7 +37,7 @@
     <AssemblyName>PidSimulator</AssemblyName>
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
     <Product>PID Process Simulator</Product>
-    <Version>0.1.2</Version>
+    <Version>0.1.3</Version>
     <Company>FA Labo</Company>
     <Authors>FA Labo(fa_yoshinobu)</Authors>
     <Copyright>Copyright (c) 2026 FA Labo</Copyright>

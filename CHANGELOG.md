@@ -4,6 +4,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-13
+
 ### Added
 
 - Added bounded diagnostic logs, per-target fault handling and separate recovery saves for unsaved projects.
@@ -14,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Aligned local and CI release output at `artifacts/release/`, with a fixed-name distribution ZIP and UTF-8/LF SHA-256 checksum.
 - Keep default CSV destinations portable and preserve unknown JSON fields when projects are edited and saved.
 - Separate project, PLC connection, registration, communication recovery and FORCE responsibilities.
+- Update the bundled .NET and Windows Desktop runtimes to 10.0.15.
 - Warn before event retention discards older records and record unexpected communication cleanup failures.
 
 ### Fixed
@@ -57,7 +60,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - 初版。
 
-[Unreleased]: https://github.com/fa-yoshinobu/plc-pid-simulator-dotnet/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/fa-yoshinobu/plc-pid-simulator-dotnet/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/fa-yoshinobu/plc-pid-simulator-dotnet/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/fa-yoshinobu/plc-pid-simulator-dotnet/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/fa-yoshinobu/plc-pid-simulator-dotnet/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/fa-yoshinobu/plc-pid-simulator-dotnet/releases/tag/v0.1.0
