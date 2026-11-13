@@ -69,7 +69,7 @@ public partial class App : Application
         if (Interlocked.Exchange(ref _handlingError, 1) != 0) return;
         try
         {
-            try { _engine?.StopAll("予期しないエラー"); }
+            try { StopControlForRecovery(_viewModel, _engine); }
             catch (Exception stopError)
             {
                 Diagnostics.Write("全制御停止でエラー", stopError);
@@ -93,6 +93,12 @@ public partial class App : Application
             Shutdown(1);
         }
         finally { Volatile.Write(ref _handlingError, 0); }
+    }
+
+    internal static void StopControlForRecovery(MainViewModel? viewModel, SimulationEngine? engine)
+    {
+        viewModel?.CancelStartAll();
+        engine?.StopAll("予期しないエラー");
     }
 
     protected override void OnExit(ExitEventArgs e)

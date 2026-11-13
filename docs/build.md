@@ -58,7 +58,10 @@ dotnet run --project src/PidSimulator.App
 
 ```powershell
 dotnet test tests/PidSimulator.Tests -c Release
+dotnet test tests/PidSimulator.App.Tests -c Release
 ```
+
+画面側のテストはWindows上のSTAスレッドで、ウィンドウを表示せずに実行します。確認・ファイル選択・登録・設定のダイアログは `IUserInteraction`、PLCの生成はファクトリで差し替えます。新規・登録・保存・再読込、未保存確認、DEMO上書き禁止、全制御開始と接続失敗、通信切替の拒否、複製・削除、未知JSON項目の編集後・回復保存を検証します。ソリューション全体をまとめて検証する場合は `dotnet test PidSimulator.sln -c Release` を使用します。
 
 `DEMO.psim` は通常のビルドでも実行ファイルと同じフォルダにコピーされます。
 
@@ -68,11 +71,13 @@ dotnet test tests/PidSimulator.Tests -c Release
 
 | 場所 | 内容 |
 | --- | --- |
-| `src/PidSimulator.Core` | プロセスモデル、演算、ダミーPLC、プロジェクト保存、登録チェック |
+| `src/PidSimulator.Core` | プロセスモデル、演算、ダミーPLC、プロジェクト保存、登録チェック。`TargetCommunication` が通信異常・復帰、`ForceSet` がFORCE状態を管理 |
 | `src/PidSimulator.Plc.Slmp` | MELSEC SLMP通信 |
 | `src/PidSimulator.Plc.HostLink` | KEYENCE Host Link通信 |
 | `src/PidSimulator.App` | WPF画面とViewModel |
+| `src/PidSimulator.App/ViewModels` | `MainViewModel` が画面状態、`ProjectWorkflow` が保存・読込、`PlcConnectionController` が接続・通信切替、`TargetRegistrationWorkflow` が登録・編集・複製・削除を担当 |
 | `tests/PidSimulator.Tests` | モデル・通信・保存などの自動テストとテスト用PLCサーバ |
+| `tests/PidSimulator.App.Tests` | 実ViewModelの画面操作手順を、画面未表示・偽ダイアログ・偽PLCで検証 |
 | `tools/Artwork` | アプリアイコンとソーシャルプレビュー画像の生成 |
 | `docs` | 仕様・計算の説明・画像 |
 

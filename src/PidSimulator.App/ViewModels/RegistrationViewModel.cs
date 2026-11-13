@@ -155,6 +155,9 @@ public sealed partial class RegistrationViewModel : ObservableObject
         if (_loading) return;
         var c = _source.Clone();
         c.ApplyModelDefaults(value);
+        c.MvRange.ExtensionData = _source.MvRange.ExtensionData;
+        c.PvRange.ExtensionData = _source.PvRange.ExtensionData;
+        c.SpRange.ExtensionData = _source.SpRange.ExtensionData;
         LoadModelValues(c);
         OnPropertyChanged(nameof(ModelChanged));
     }

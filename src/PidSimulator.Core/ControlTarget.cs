@@ -1,24 +1,8 @@
-﻿using PidSimulator.Core.Models;
+using PidSimulator.Core.Models;
 using PidSimulator.Core.Plc;
 using PidSimulator.Core.Project;
 
 namespace PidSimulator.Core;
-
-public sealed class ForceItem
-{
-    public bool On { get; set; }
-    public double Value { get; set; }
-}
-
-public sealed class ForceSet
-{
-    private readonly Dictionary<ForceKey, ForceItem> _items =
-        Enum.GetValues<ForceKey>().ToDictionary(k => k, _ => new ForceItem());
-
-    public ForceItem this[ForceKey k] => _items[k];
-    public bool Any => _items.Values.Any(i => i.On);
-    public ForceKey[] Active => _items.Where(p => p.Value.On).Select(p => p.Key).ToArray();
-}
 
 public sealed record TargetSnapshot(
     RunState RunState, CommStatus Comm, string? Alarm,
@@ -34,9 +18,8 @@ public sealed record TargetSnapshot(
 public sealed class ControlTarget
 {
     private double _spRead;
-    private bool _resumeRequested;
+    private readonly TargetCommunication _communication;
     private double? _pendingPvWrite;
-    private double _lastPoll;
     private bool _cycleFaulted;
     private readonly DisturbanceSchedule _disturbanceSchedule = new();
 
@@ -45,6 +28,7 @@ public sealed class ControlTarget
 
     internal ControlTarget(string name, ModelKind kind, ProcessModel model)
     {
+        _communication = new TargetCommunication(this);
         Name = name;
         Kind = kind;
         Info = ModelCatalog.Get(kind);
@@ -97,8 +81,8 @@ public sealed class ControlTarget
     public ForceSet Forces { get; } = new();
     public TrendBuffer Trend { get; } = new(TrendBuffer.CapacityForMinutes(TrendBuffer.DefaultRetentionMinutes));
     public RunState RunState { get; private set; }
-    public CommStatus Comm { get; private set; } = CommStatus.Ok;
-    public string? Alarm { get; private set; }
+    public CommStatus Comm => _communication.Status;
+    public string? Alarm { get; internal set; }
     public double Sp { get; private set; }
     public double Pv { get; private set; }
     public double Mv { get; private set; }
@@ -135,9 +119,9 @@ public sealed class ControlTarget
     }
 
     private double CurrentDisturbance() =>
-        Forces[ForceKey.Disturbance].On ? Forces[ForceKey.Disturbance].Value
-        : _disturbanceSchedule.State == DisturbanceScheduleState.Active ? _disturbanceSchedule.Value
-        : DisturbanceOn ? DisturbanceValue : 0;
+        Forces.ActiveValue(ForceKey.Disturbance)
+        ?? (_disturbanceSchedule.State == DisturbanceScheduleState.Active ? _disturbanceSchedule.Value
+        : DisturbanceOn ? DisturbanceValue : 0);
 
     // ---- 操作（UIスレッドから呼ばれる） ----
 
@@ -232,30 +216,12 @@ public sealed class ControlTarget
 
     public void SetForce(ForceKey key, bool on, double value, EventLog log)
     {
-        lock (Sync)
-        {
-            var f = Forces[key];
-            bool changed = f.On != on || (on && f.Value != value);
-            f.Value = value;
-            f.On = on;
-            if (changed)
-                log.Add(this, "FORCE", on ? $"{Labels.Of(key)} FORCE ON {value:0.0##}" : $"{Labels.Of(key)} FORCE OFF");
-        }
+        lock (Sync) Forces.Set(key, on, value, this, log);
     }
 
     public int ReleaseForces(EventLog log, string? reason = null)
     {
-        lock (Sync)
-        {
-            int n = 0;
-            foreach (var k in Forces.Active)
-            {
-                Forces[k].On = false;
-                n++;
-                log.Add(this, "FORCE", $"{Labels.Of(k)} FORCE OFF{(reason != null ? $"（{reason}）" : "")}");
-            }
-            return n;
-        }
+        lock (Sync) return Forces.ReleaseAll(this, log, reason);
     }
 
     public void SetDisturbance(bool on, double t, EventLog log)
@@ -340,7 +306,7 @@ public sealed class ControlTarget
         {
             if (Alarm == null && Comm == CommStatus.Ok) return false;
             _cycleFaulted = false;
-            if (Comm != CommStatus.Ok) _resumeRequested = true;
+            if (Comm != CommStatus.Ok) _communication.RequestRecovery();
             else
             {
                 Alarm = null;
@@ -551,7 +517,7 @@ public sealed class ControlTarget
             RunState = RunState.Stopped;
             PvWriting = false;
             _pendingPvWrite = null;
-            _resumeRequested = false;
+            _communication.CancelRecovery();
             _cycleFaulted = true;
             CancelDisturbanceScheduleCore(log);
             Alarm = $"演算エラー：{error.Message}";
@@ -564,7 +530,7 @@ public sealed class ControlTarget
         lock (Sync)
         {
             if (_cycleFaulted) return;
-            if (RunState != RunState.Preview) PollRecovery(plc, t, log);
+            if (RunState != RunState.Preview) _communication.PollRecovery(plc, t, log);
 
             if (_pendingPvWrite is double stopValue)
             {
@@ -578,7 +544,7 @@ public sealed class ControlTarget
             {
                 var mvStatus = plc.Read(MvAddress, MvDataType, out double mvRaw);
                 if (mvStatus == PlcIoStatus.Failed) CommFail(MvAddress, t, log, plc);
-                else if (mvStatus == PlcIoStatus.Ok && Comm != CommStatus.Ok && Recover == RecoverMode.Auto) RecoverComm(log, "自動");
+                else if (mvStatus == PlcIoStatus.Ok && Comm != CommStatus.Ok && Recover == RecoverMode.Auto) _communication.Recover(log, "自動");
 
                 if (UseSp && Comm == CommStatus.Ok && plc.Read(SpAddress, DataType, out double spRaw) == PlcIoStatus.Ok)
                     _spRead = SpRange.ToEng(spRaw);
@@ -599,19 +565,19 @@ public sealed class ControlTarget
                 mv = PreviewMv;
             }
 
-            if (Forces[ForceKey.Mv].On) mv = Forces[ForceKey.Mv].Value;
+            mv = Forces.ActiveValue(ForceKey.Mv) ?? mv;
             if (!double.IsFinite(mv))
             {
                 RaiseAlarm("MV値異常（NaN / Infinity）", log);
                 mv = Mv;
             }
             Mv = Math.Clamp(mv, MvRange.EngMin, MvRange.EngMax);
-            Sp = Forces[ForceKey.Sp].On ? Forces[ForceKey.Sp].Value : UseSp ? _spRead : InternalSp;
+            Sp = Forces.ActiveValue(ForceKey.Sp) ?? (UseSp ? _spRead : InternalSp);
 
             // 4〜6. モデル更新・PV計算・センサ特性
             if (RunState != RunState.Stopped) AdvanceDisturbanceSchedule(t, log);
             double dist = CurrentDisturbance();
-            Model.InputOverride = Forces[ForceKey.ModelInput].On ? Forces[ForceKey.ModelInput].Value : null;
+            Model.InputOverride = Forces.ActiveValue(ForceKey.ModelInput);
             if (RunState != RunState.Stopped)
             {
                 double pv = Model.Step(EngineeringUnits.MvToPercent(MvRange, Mv), dist, dt, t);
@@ -623,7 +589,7 @@ public sealed class ControlTarget
                     StopCore(log, "演算異常");
                 }
             }
-            Pv = Forces[ForceKey.Pv].On ? Forces[ForceKey.Pv].Value : PvFromModel(Model.Output);
+            Pv = Forces.ActiveValue(ForceKey.Pv) ?? PvFromModel(Model.Output);
 
             // 7〜8. PLC値へ変換して書込み（異常値は書き込まない）
             PvWriting = RunState == RunState.Running
@@ -646,40 +612,9 @@ public sealed class ControlTarget
         }
     }
 
-    private void PollRecovery(IPlcClient plc, double t, EventLog log)
-    {
-        if (_resumeRequested)
-        {
-            var status = plc.Read(MvAddress, MvDataType, out _);
-            if (status == PlcIoStatus.Pending) return; // 通信ループの取得を待ってから判定する
-            _resumeRequested = false;
-            if (status == PlcIoStatus.Ok) RecoverComm(log, "手動");
-            else log.Add(this, "通信", $"再接続失敗：{MvAddress} 応答なし{Detail(plc)}");
-        }
-        else if (Comm != CommStatus.Ok && Recover == RecoverMode.Auto && RunState != RunState.Running && t - _lastPoll >= 1)
-        {
-            _lastPoll = t;
-            if (plc.Read(MvAddress, MvDataType, out _) == PlcIoStatus.Ok) RecoverComm(log, "自動");
-        }
-    }
-
-    private static string Detail(IPlcClient plc) => plc.Status.LastError is { } e ? $"（{e}）" : "";
     private void CommFail(string address, double t, EventLog log, IPlcClient plc)
     {
-        if (Comm != CommStatus.Ok) return;
-        Comm = CommStatus.Timeout;
-        _lastPoll = t;
-        Alarm = $"通信タイムアウト：{address} 応答なし{Detail(plc)}";
-        log.Add(this, "異常", Alarm);
-        if (OnCommError == CommErrorAction.StopSimulation) StopCore(log, "通信異常");
-        else log.Add(this, "異常", $"異常時動作: {Labels.Of(OnCommError)}");
-    }
-
-    private void RecoverComm(EventLog log, string how)
-    {
-        Comm = CommStatus.Ok;
-        Alarm = null;
-        log.Add(this, "通信", $"通信復旧（{how}再開）");
+        if (_communication.Fail(address, t, log, plc)) StopCore(log, "通信異常");
     }
 
     private void RaiseAlarm(string message, EventLog log)

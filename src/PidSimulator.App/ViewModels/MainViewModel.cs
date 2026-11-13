@@ -1,34 +1,36 @@
 ﻿using System.Collections.ObjectModel;
 using System.IO;
-using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Win32;
 using PidSimulator.App.Views;
 using PidSimulator.Core;
 using PidSimulator.Core.Plc;
 using PidSimulator.Core.Project;
-using PidSimulator.Plc.Slmp;
-using PidSimulator.Plc.HostLink;
 
 namespace PidSimulator.App.ViewModels;
 
 public sealed partial class MainViewModel : ObservableObject
 {
-    private const string FileFilter = "PIDシミュレータ プロジェクト (*.psim)|*.psim";
-
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(200) };
     private DateTime _toastUntil;
     private int _tick;
     private CancellationTokenSource? _startAllCts;
-    private ProjectDocument _loadedDocument = new();
+    private readonly IUserInteraction _interaction;
+    private readonly ProjectWorkflow _projects;
+    private readonly TargetRegistrationWorkflow _registration;
+    private readonly PlcConnectionController _connection;
 
-    public MainViewModel(SimulationEngine engine, DummyPlc dummy, string projectName)
+    public MainViewModel(SimulationEngine engine, DummyPlc dummy, string projectName,
+        IUserInteraction? interaction = null, Func<PlcSettings, IPlcClient>? clientFactory = null, bool startUiTimer = true)
     {
         Engine = engine;
         Dummy = dummy;
+        _interaction = interaction ?? new WpfUserInteraction();
+        _projects = new ProjectWorkflow(this, _interaction);
+        _registration = new TargetRegistrationWorkflow(this, _interaction);
+        _connection = new PlcConnectionController(engine, dummy, _interaction, CancelStartAll, clientFactory);
         _projectName = projectName;
         foreach (var t in engine.Targets) Targets.Add(new TargetViewModel(this, t));
         foreach (var e in engine.Log.Snapshot().Reverse()) Events.Add(e);
@@ -42,7 +44,7 @@ public sealed partial class MainViewModel : ObservableObject
         _currentPage = Overview;
         Targets.CollectionChanged += (_, _) => UpdateTargetNavigation();
         _timer.Tick += (_, _) => OnTick();
-        _timer.Start();
+        if (startUiTimer) _timer.Start();
         UpdateSummary();
     }
 
@@ -52,8 +54,8 @@ public sealed partial class MainViewModel : ObservableObject
     public bool IsDummy => Engine.Plc is DummyPlc;
     public bool CanConnect => Engine.Plc is IConnectablePlcClient && Engine.Plc.Status.State == PlcConnectionState.Disconnected;
     public bool CanDisconnect => Engine.Plc is IConnectablePlcClient && Engine.Plc.Status.State != PlcConnectionState.Disconnected;
-    public PlcSettings PlcSettings { get; private set; } = new();
-    public DataSettings DataSettings { get; private set; } = new();
+    public PlcSettings PlcSettings => _connection.Settings;
+    public DataSettings DataSettings { get; internal set; } = new();
     public ObservableCollection<TargetViewModel> Targets { get; } = [];
     public ObservableCollection<EventEntry> Events { get; } = [];
     public OverviewViewModel Overview { get; }
@@ -92,7 +94,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (HasToast && DateTime.Now > _toastUntil) HasToast = false;
     }
 
-    private void UpdateSummary()
+    internal void UpdateSummary()
     {
         TotalCount = Targets.Count;
         HasTargets = TotalCount > 0;
@@ -218,7 +220,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (Engine.Failure != null)
         {
-            Dialogs.Error("演算スレッド停止", "プロジェクトを保存し、アプリを再起動してください。");
+            _interaction.Error("演算スレッド停止", "プロジェクトを保存し、アプリを再起動してください。");
             return;
         }
         var candidates = Targets.Where(t => t.IsStopped).ToList();
@@ -230,8 +232,8 @@ public sealed partial class MainViewModel : ObservableObject
         var items = ok.Select(t => new CheckResult(CheckLevel.Ok, $"{t.Name}　PV → {t.PvAddress}"))
             .Concat(ng.Select(t => new CheckResult(CheckLevel.Warn, $"開始しない（異常中）: {t.Name}")))
             .Concat(candidates.SelectMany(t => blockers[t].Select(c => new CheckResult(CheckLevel.Block, $"{t.Name}: {c.Message}"))));
-        if (ok.Count == 0) { Dialogs.Error("全制御開始", "開始できる制御対象がありません。", items); return; }
-        if (!Dialogs.Confirm("全制御開始", "次の制御対象の演算とPV書込みを開始します。", $"{ok.Count} 件を開始", items: items)) return;
+        if (ok.Count == 0) { _interaction.Error("全制御開始", "開始できる制御対象がありません。", items); return; }
+        if (!_interaction.Confirm("全制御開始", "次の制御対象の演算とPV書込みを開始します。", $"{ok.Count} 件を開始", items: items)) return;
 
         using var cts = new CancellationTokenSource();
         _startAllCts = cts;
@@ -245,7 +247,7 @@ public sealed partial class MainViewModel : ObservableObject
                 UpdatePlcStatus();
                 if (!result.Ok)
                 {
-                    Dialogs.Error("全制御を開始できません", result.Message);
+                    _interaction.Error("全制御を開始できません", result.Message);
                     return;
                 }
             }
@@ -253,7 +255,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (!ReferenceEquals(plc, Engine.Plc)) return;
             if (plc.Status.State != PlcConnectionState.Connected)
             {
-                Dialogs.Error("全制御を開始できません", "PLCに接続できませんでした。");
+                _interaction.Error("全制御を開始できません", "PLCに接続できませんでした。");
                 return;
             }
             int started = ok.Count(t => t.Model.Start(Engine.Log, out _));
@@ -294,280 +296,28 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     // ---- 登録・編集・複製・削除（§5・§22） ----
-
     [RelayCommand]
-    private void Register()
-    {
-        var cfg = TargetConfig.Default(ModelKind.Level);
-        (cfg.MvAddress, cfg.PvAddress, cfg.SpAddress) = NextAddresses();
-        var vm = new RegistrationViewModel(RegistrationMode.New, cfg, Engine.Targets, Engine.Plc, plcSettings: PlcSettings);
-        if (!ShowRegistration(vm)) return;
-        var t = AddTarget(vm.Result!, null);
-        Notify($"{t.Name} を登録しました");
-    }
-
-    public void Edit(TargetViewModel t)
-    {
-        if (!t.IsStopped)
-        {
-            Dialogs.Info("登録内容の編集", $"{t.Name} は制御中またはプレビュー中です。停止してから編集してください。");
-            return;
-        }
-        var vm = new RegistrationViewModel(RegistrationMode.Edit, t.Model.ToConfig(),
-            Engine.Targets.Where(x => x != t.Model), Engine.Plc, t.Name, PlcSettings);
-        if (!ShowRegistration(vm)) return;
-
-        var cfg = vm.Result!;
-        ControlTarget updated;
-        if (cfg.Kind != t.Model.Kind)
-        {
-            updated = ControlTarget.FromConfig(cfg);
-            Engine.Replace(t.Model, updated);
-        }
-        else
-        {
-            t.Model.ApplySettings(cfg);
-            Engine.Log.Add(t.Model, "登録", "登録内容を編集");
-            updated = t.Model;
-        }
-        ReplaceViewModel(t, new TargetViewModel(this, updated));
-        RebuildDummyLoops();
-        MarkDirty();
-        Notify("登録内容を保存しました");
-    }
-
-    public void Duplicate(TargetViewModel t)
-    {
-        var cfg = t.Model.ToConfig();
-        cfg.Name = $"{t.Name} のコピー";
-        (cfg.MvAddress, cfg.PvAddress, cfg.SpAddress) = NextAddresses();
-        var vm = new RegistrationViewModel(RegistrationMode.Duplicate, cfg, Engine.Targets, Engine.Plc, t.Name, PlcSettings);
-        if (!ShowRegistration(vm)) return;
-        var added = AddTarget(vm.Result!, $"{t.Name} から複製して登録");
-        Notify($"{added.Name} を登録しました");
-    }
-
-    public void Delete(TargetViewModel t)
-    {
-        if (!t.IsStopped)
-        {
-            Dialogs.Info("削除できません", $"{t.Name} は制御中です。停止してから削除してください。");
-            return;
-        }
-        if (!Dialogs.Confirm("制御対象の削除", $"{t.Name} を削除します。トレンド履歴と設定も削除されます。\nPV書込先 {t.PvAddress} への書込みは行われなくなります。", "削除", danger: true))
-            return;
-        if (CurrentPage is DetailViewModel d && d.Target == t) Back();
-        Engine.Remove(t.Model);
-        Targets.Remove(t);
-        RebuildDummyLoops();
-        MarkDirty();
-        UpdateSummary();
-        Notify("削除しました");
-    }
-
-    private static bool ShowRegistration(RegistrationViewModel vm)
-    {
-        var window = new RegistrationWindow(vm) { Owner = Application.Current.MainWindow };
-        return window.ShowDialog() == true && vm.Result != null;
-    }
-
-    private TargetViewModel AddTarget(TargetConfig cfg, string? extraLog)
-    {
-        var t = ControlTarget.FromConfig(cfg);
-        Engine.Add(t);
-        if (extraLog != null) Engine.Log.Add(t, "登録", extraLog);
-        Dummy.AddLoop(DummyPidLoop.For(t));
-        var vm = new TargetViewModel(this, t);
-        Targets.Add(vm);
-        MarkDirty();
-        UpdateSummary();
-        return vm;
-    }
-
-    private void ReplaceViewModel(TargetViewModel oldVm, TargetViewModel newVm)
-    {
-        int i = Targets.IndexOf(oldVm);
-        if (i >= 0) Targets[i] = newVm;
-        if (CurrentPage is DetailViewModel d && d.Target == oldVm)
-        {
-            Open(newVm);
-        }
-    }
-
-    /// <summary>ダミーPLCのPIDループを登録内容に合わせて作り直す（実機PLCでは不要）</summary>
-    private void RebuildDummyLoops()
-    {
-        var sps = Engine.Targets.ToDictionary(t => t, t =>
-        {
-            var previous = Dummy.FindLoop(t.MvAddress);
-            return t.UseSp && previous?.SpRange.Unit == t.SpRange.Unit ? previous.Sp : t.InternalSp;
-        });
-        Dummy.ClearLoops();
-        foreach (var (t, sp) in sps) Dummy.AddLoop(DummyPidLoop.For(t, sp));
-    }
-
-    /// <summary>選択中の通信方式に合うワードデバイスで、既存アドレスの次の10番台を提案する。</summary>
-    private (string mv, string pv, string sp) NextAddresses()
-    {
-        string prefix = PlcSettings.Mode == PlcMode.HostLink && !PlcSettings.Profile.EndsWith("-xym", StringComparison.Ordinal) ? "DM" : "D";
-        int max = Engine.Targets
-            .SelectMany(t => new[] { t.MvAddress, t.PvAddress, t.SpAddress })
-            .Select(a => Regex.Match(a ?? "", $@"^{prefix}(\d+)$", RegexOptions.IgnoreCase))
-            .Where(m => m.Success)
-            .Select(m => int.Parse(m.Groups[1].Value))
-            .DefaultIfEmpty(990)
-            .Max();
-        int b = (max / 10 + 1) * 10;
-        return ($"{prefix}{b}", $"{prefix}{b + 2}", $"{prefix}{b + 4}"); // FLOAT32 / INT32 は各2ワード使う
-    }
+    private void Register() => _registration.Register();
+    public void Edit(TargetViewModel target) => _registration.Edit(target);
+    public void Duplicate(TargetViewModel target) => _registration.Duplicate(target);
+    public void Delete(TargetViewModel target) => _registration.Delete(target);
+    internal void BackToOverview() => Back();
 
     // ---- プロジェクト（§13） ----
 
     [RelayCommand]
-    private void NewProject()
-    {
-        if (!ConfirmLeave("新規プロジェクト")) return;
-        LoadDocument(new ProjectDocument(), null);
-        Notify("新規プロジェクトを作成しました");
-    }
-
+    private void NewProject() => _projects.New();
     [RelayCommand]
-    private void OpenProject()
-    {
-        if (!ConfirmLeave("プロジェクトを開く")) return;
-        var dlg = new OpenFileDialog { Filter = FileFilter, Title = "プロジェクトを開く" };
-        if (dlg.ShowDialog() != true) return;
-        OpenProjectFile(dlg.FileName);
-    }
-
+    private void OpenProject() => _projects.Open();
     [RelayCommand]
-    private void OpenDemo()
-    {
-        if (!ConfirmLeave("DEMOを開く")) return;
-        OpenProjectFile(Path.Combine(AppContext.BaseDirectory, ProjectSerializer.DemoFileName));
-    }
-
-    private void OpenProjectFile(string path)
-    {
-        try
-        {
-            var doc = ProjectSerializer.Load(path);
-            LoadDocument(doc, path);
-            Notify($"{Path.GetFileName(path)} を開きました（{doc.Targets.Count} 件）");
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
-        {
-            App.Diagnostics.Write("プロジェクト読込み失敗", ex);
-            Dialogs.Error("プロジェクトを開けません", $"{path}\n\n{ex.Message}");
-        }
-    }
-
+    private void OpenDemo() => _projects.OpenDemo();
     [RelayCommand]
-    private void SaveProject() => Save();
-
+    private void SaveProject() => _projects.Save();
     [RelayCommand]
-    private void SaveProjectAs() => SaveAs();
-
-    private bool Save() => ProjectPath == null || ProjectSerializer.IsDemoFile(ProjectPath)
-        ? SaveAs() : WriteProject(ProjectPath);
-
-    private bool SaveAs()
-    {
-        var dlg = new SaveFileDialog
-        {
-            Filter = FileFilter,
-            Title = "名前を付けて保存",
-            FileName = ProjectSerializer.IsDemoFile(ProjectPath) ? "DEMO_コピー" : Path.GetFileNameWithoutExtension(ProjectPath) ?? ProjectName,
-            DefaultExt = ProjectSerializer.Extension,
-        };
-        dlg.FileOk += (_, e) =>
-        {
-            if (!ProjectSerializer.IsDemoFile(dlg.FileName)) return;
-            e.Cancel = true;
-            Dialogs.Info("別の名前で保存", "DEMO.psim は上書きできません。ファイル名を変更してください。");
-        };
-        if (dlg.ShowDialog() != true) return false;
-        return WriteProject(dlg.FileName);
-    }
-
-    private bool WriteProject(string path)
-    {
-        string name = Path.GetFileNameWithoutExtension(path);
-        var doc = SnapshotProject(name);
-        try
-        {
-            ProjectSerializer.Save(path, doc);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            App.Diagnostics.Write("プロジェクト保存失敗", ex);
-            Dialogs.Error("保存できません", $"{path}\n\n{ex.Message}");
-            return false;
-        }
-        ProjectPath = path;
-        ProjectName = name;
-        IsDirty = false;
-        Engine.Log.Add(null, "登録", $"プロジェクトを保存: {Path.GetFileName(path)}");
-        Notify($"{Path.GetFileName(path)} に保存しました");
-        return true;
-    }
-
-    public string? SaveRecovery()
-    {
-        if (!IsDirty) return null;
-        var document = SnapshotProject(ProjectName);
-        string directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "PidSimulator", "recovery");
-        return ProjectRecovery.Save(document, ProjectPath, directory,
-            error => App.Diagnostics.Write("元の場所への回復保存失敗", error));
-    }
-
-    private ProjectDocument SnapshotProject(string name) => _loadedDocument.Snapshot(
-        name, PlcSettings, DataSettings, Engine.Targets.Select(t => t.ToConfig()));
-
-    private void LoadDocument(ProjectDocument doc, string? path)
-    {
-        _startAllCts?.Cancel();
-        (CurrentPage as DetailViewModel)?.Detach();
-        CurrentPage = Overview;
-        Engine.Clear();
-        Dummy.ClearLoops(resetState: true);
-        Targets.Clear();
-        _loadedDocument = doc;
-        DataSettings = doc.Data;
-        Engine.SetTrendRetention(DataSettings.TrendMinutes);
-        ApplyPlcSettings(doc.Plc, force: true);
-        foreach (var cfg in doc.Targets)
-        {
-            var t = ControlTarget.FromConfig(cfg);
-            Engine.Add(t);
-            Dummy.AddLoop(DummyPidLoop.For(t));
-            Targets.Add(new TargetViewModel(this, t));
-        }
-        ProjectPath = path;
-        ProjectName = path != null ? Path.GetFileNameWithoutExtension(path) : doc.Name;
-        IsDirty = false;
-        Engine.Log.Add(null, "登録", path != null ? $"プロジェクトを開く: {Path.GetFileName(path)}" : "新規プロジェクト");
-        UpdateSummary();
-    }
-
-    /// <summary>プロジェクトを離れる前の確認。制御中なら停止、未保存なら保存を尋ねる。</summary>
-    public bool ConfirmLeave(string action)
-    {
-        if (Targets.Any(t => !t.IsStopped))
-        {
-            if (!Dialogs.Confirm(action, "制御中またはプレビュー中の対象があります。すべて停止してから続けます。", "停止して続ける", danger: true))
-                return false;
-            Engine.StopAll(action);
-        }
-        if (!IsDirty) return true;
-        return Dialogs.AskSave(ProjectName) switch
-        {
-            0 => Save(),
-            1 => true,
-            _ => false,
-        };
-    }
+    private void SaveProjectAs() => _projects.SaveAs();
+    public string? SaveRecovery() => _projects.SaveRecovery();
+    public bool ConfirmLeave(string action) => _projects.ConfirmLeave(action);
+    internal void CancelStartAll() => _startAllCts?.Cancel();
 
     // ---- 共通設定・その他 ----
 
@@ -575,8 +325,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void OpenSettings(string? tab)
     {
         var vm = new SettingsViewModel(PlcSettings, DataSettings, int.TryParse(tab, out int i) ? i : 0);
-        var window = new SettingsWindow(vm) { Owner = Application.Current.MainWindow };
-        if (window.ShowDialog() != true || !vm.Saved) return;
+        if (!_interaction.EditSettings(vm)) return;
         var next = PlcSettings.Clone();
         var nextData = new DataSettings();
         vm.ApplyTo(next, nextData);
@@ -587,58 +336,19 @@ public sealed partial class MainViewModel : ObservableObject
         Notify("共通設定を保存しました");
     }
 
-    /// <summary>
-    /// 通信方式・接続先を切り替える。制御中の対象があれば確認して全停止してから切り替える。
-    /// 実機用クライアントは未接続の状態で保持し、接続操作まで通信を開始しない。
-    /// </summary>
-    private bool ApplyPlcSettings(PlcSettings next, bool force)
+    internal bool ApplyPlcSettings(PlcSettings next, bool force)
     {
-        bool changed = force || !next.SameConnection(PlcSettings);
-        if (!changed)
-        {
-            PlcSettings = next;
-            return true;
-        }
-        _startAllCts?.Cancel();
-
-        if (Targets.Any(t => !t.IsStopped))
-        {
-            if (!Dialogs.Confirm("PLC通信の切替", "制御中またはプレビュー中の対象があります。すべて停止してから通信方式を切り替えます。", "停止して切り替える", danger: true))
-                return false;
-            Engine.StopAll("PLC通信の切替");
-        }
-
-        IPlcClient client;
-        try
-        {
-            client = CreatePlcClient(next);
-        }
-        catch (Exception ex) when (ex is ArgumentException or FormatException or InvalidOperationException)
-        {
-            Dialogs.Error("通信設定を保存できません", $"接続設定を確認してください。\n\n{ex.Message}");
-            return false;
-        }
-        PlcSettings = next;
-        var old = Engine.SwapPlc(client);
-        if (!ReferenceEquals(old, client) && old is not DummyPlc) _ = Task.Run(old.Dispose);
-        foreach (var t in Targets) t.Refresh(false);
+        if (!_connection.Apply(next, force)) return false;
+        foreach (var target in Targets) target.Refresh(false);
         OnPropertyChanged(nameof(IsDummy));
         UpdatePlcStatus();
         return true;
     }
 
-    private IPlcClient CreatePlcClient(PlcSettings settings) => settings.Mode switch
-    {
-        PlcMode.Slmp => new SlmpPlcClient(settings),
-        PlcMode.HostLink => new HostLinkPlcClient(settings),
-        _ => Dummy,
-    };
-
     [RelayCommand(CanExecute = nameof(CanConnect))]
     private void ConnectPlc()
     {
-        if (Engine.Plc is not IConnectablePlcClient client) return;
-        client.Connect();
+        if (!_connection.Connect()) return;
         UpdatePlcStatus();
         Notify("PLCへの接続を開始しました");
     }
@@ -646,11 +356,8 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanDisconnect))]
     private async Task DisconnectPlc()
     {
-        _startAllCts?.Cancel();
-        Engine.StopAll("通信切断");
-        var old = Engine.SwapPlc(CreatePlcClient(PlcSettings));
-        await Task.Run(old.Dispose);
-        foreach (var t in Targets) t.Refresh(false);
+        await _connection.DisconnectAsync();
+        foreach (var target in Targets) target.Refresh(false);
         UpdatePlcStatus();
         Notify("通信を切断しました");
     }
@@ -658,7 +365,7 @@ public sealed partial class MainViewModel : ObservableObject
     public bool CheckPlcConnected()
     {
         if (Engine.Plc.Status.State == PlcConnectionState.Connected) return true;
-        Dialogs.Info("PLC未接続", "「接続」を押し、接続完了後に制御を開始してください。");
+        _interaction.Info("PLC未接続", "「接続」を押し、接続完了後に制御を開始してください。");
         return false;
     }
 
@@ -666,7 +373,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void ExportCsv()
     {
         if (CurrentPage is DetailViewModel d) d.ExportCsvCommand.Execute(null);
-        else Dialogs.Info("試験データのCSV出力", "一覧から制御対象を開き、詳細画面で実行してください。");
+        else _interaction.Info("試験データのCSV出力", "一覧から制御対象を開き、詳細画面で実行してください。");
     }
 
     [RelayCommand]
