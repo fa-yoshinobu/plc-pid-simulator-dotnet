@@ -4,7 +4,7 @@ setlocal
 chcp 65001 >nul
 
 set "ROOT=%~dp0"
-set "EXE=%ROOT%publish\win-x64-single\PidSimulator.exe"
+set "EXE=%ROOT%artifacts\release\PidSimulator.exe"
 
 if not exist "%EXE%" (
   echo [error] exe がありません: "%EXE%"

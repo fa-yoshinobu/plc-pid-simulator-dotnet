@@ -52,6 +52,16 @@ jobs:
           ref: refs/tags/${{ env.RELEASE_TAG }}
           persist-credentials: false
 
+      - name: Verify application version
+        shell: pwsh
+        env:
+          CHECK_TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          if ($env:CHECK_TAG -cnotmatch '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$') { throw 'Use a SemVer tag such as v1.2.3.' }
+          [xml]$project = Get-Content -LiteralPath 'src/PidSimulator.App/PidSimulator.App.csproj'
+          $version = @($project.Project.PropertyGroup.Version | Where-Object { $_ })[0]
+          if ($version -cne $env:CHECK_TAG.Substring(1)) { throw 'Release tag must match the application version.' }
+
       - name: Set up .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
@@ -67,7 +77,7 @@ jobs:
           $publishArgs = @(
             'publish', 'src/PidSimulator.App/PidSimulator.App.csproj',
             '--configuration', 'Release', '--runtime', 'win-x64', '--self-contained', 'true',
-            '--output', 'publish/win-x64-single', '--nologo', '--verbosity', 'minimal',
+            '--output', 'artifacts/release', '--nologo', '--verbosity', 'minimal',
             '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true',
             '-p:EnableCompressionInSingleFile=true', '-p:DebugType=None', '-p:DebugSymbols=false',
             "-p:Version=$env:RELEASE_VERSION"
@@ -77,9 +87,9 @@ jobs:
 
       - name: Package EXE and DEMO only
         run: |
-          New-Item -ItemType Directory -Path 'artifacts' -Force | Out-Null
-          $zip = Join-Path 'artifacts' $env:RELEASE_ASSET
-          Compress-Archive -LiteralPath @('publish/win-x64-single/PidSimulator.exe', 'publish/win-x64-single/DEMO.psim') -DestinationPath $zip -CompressionLevel Optimal
+          New-Item -ItemType Directory -Path 'artifacts/release' -Force | Out-Null
+          $zip = Join-Path 'artifacts/release' $env:RELEASE_ASSET
+          Compress-Archive -LiteralPath @('artifacts/release/PidSimulator.exe', 'artifacts/release/DEMO.psim') -DestinationPath $zip -CompressionLevel Optimal
           $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $zip).Path)
           try {
             $entries = @($archive.Entries | ForEach-Object { $_.FullName } | Sort-Object)
@@ -98,7 +108,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ env.RELEASE_TAG }}
         run: |
-          python .github/scripts/release_assets.py prepare --repository "$env:GITHUB_REPOSITORY" --release-tag "$env:RELEASE_TAG" --asset-name PidSimulator-win-x64.zip --zip artifacts/PidSimulator-win-x64.zip
+          python .github/scripts/release_assets.py prepare --repository "$env:GITHUB_REPOSITORY" --release-tag "$env:RELEASE_TAG" --asset-name PidSimulator-win-x64.zip --zip artifacts/release/PidSimulator-win-x64.zip
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Publish ZIP and checksum
